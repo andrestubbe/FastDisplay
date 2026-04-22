@@ -1,0 +1,18 @@
+# Force Java as primary language for GitHub linguist
+*.java linguist-detectable=true
+*.java linguist-language=Java
+
+# Exclude C++ files from language stats completely
+*.cpp linguist-detectable=false
+*.h linguist-detectable=false
+native/* linguist-detectable=false
+
+# Exclude binary and build files
+*.dll linguist-detectable=false
+*.obj linguist-detectable=false
+*.lib linguist-detectable=false
+*.exp linguist-detectable=false
+build/* linguist-detectable=false
+
+# Documentation
+*.md linguist-documentation

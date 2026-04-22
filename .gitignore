@@ -1,0 +1,80 @@
+# OSSRH Credentials
+.ossrh-credentials
+
+# Compiled class files
+*.class
+
+# Native libraries
+*.dll
+*.so
+*.dylib
+*.exp
+*.lib
+*.obj
+*.o
+
+# Build directories
+build/
+target/
+out/
+bin/
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS files
+.DS_Store
+Thumbs.db
+*.tmp
+*.temp
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Logs
+*.log
+
+# Temporary files
+*.swp
+*.swo
+*~
+
+# Native compilation artifacts
+*.pdb
+*.ilk
+*.exe
+
+# Visual Studio
+.vs/
+*.vcxproj*
+*.sln
+x64/
+x86/
+Debug/
+Release/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Release files (local only)
+RELEASE.txt
+RELEASEV*.md
+
+# TODO files (local only)
+TODO.md

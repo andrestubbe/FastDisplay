@@ -1,0 +1,13 @@
+LIBRARY FastTheme
+EXPORTS
+    Java_fasttheme_FastTheme_startMonitoring
+    Java_fasttheme_FastTheme_stopMonitoring
+    Java_fasttheme_FastTheme_getWindowHandle
+    Java_fasttheme_FastTheme_setWindowTransparency
+    Java_fasttheme_FastTheme_setTitleBarColor
+    Java_fasttheme_FastTheme_setTitleBarTextColor
+    Java_fasttheme_FastTheme_setTitleBarDarkMode
+    Java_fasttheme_FastTheme_getSystemResolution
+    Java_fasttheme_FastTheme_getSystemDPI
+    Java_fasttheme_FastTheme_isSystemDarkMode
+    Java_fasttheme_FastTheme_getSystemRefreshRate
