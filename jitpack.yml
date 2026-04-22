@@ -1,0 +1,12 @@
+before_install:
+  - echo "Start building FastDisplay"
+  - echo "Current directory: $PWD"
+  - ls -la
+
+install:
+  - echo "Installing dependencies"
+  - mvn install -DskipTests
+
+build:
+  - echo "Building FastDisplay"
+  - mvn package -DskipTests

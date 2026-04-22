@@ -6,12 +6,12 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>io.github.andrestubbe</groupId>
-    <artifactId>fasttheme-console-demo</artifactId>
+    <artifactId>fastdisplay-demo</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
 
-    <name>FastTheme Console Demo</name>
-    <description>Console monitoring example for FastTheme - Display and theme detection</description>
+    <name>FastDisplay Demo</name>
+    <description>Console monitoring example for FastDisplay - Display detection</description>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
@@ -27,11 +27,11 @@
     </repositories>
 
     <dependencies>
-        <!-- FastTheme from JitPack (includes native DLL) -->
+        <!-- FastDisplay from local project -->
         <dependency>
             <groupId>io.github.andrestubbe</groupId>
-            <artifactId>fasttheme</artifactId>
-            <version>v1.3.2</version>
+            <artifactId>fastdisplay</artifactId>
+            <version>v1.0.0</version>
         </dependency>
         <!-- FastCore required for native library loading -->
         <dependency>
@@ -48,7 +48,7 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.1.0</version>
                 <configuration>
-                    <mainClass>fasttheme.ConsoleDemo</mainClass>
+                    <mainClass>fastdisplay.Demo</mainClass>
                 </configuration>
             </plugin>
         </plugins>

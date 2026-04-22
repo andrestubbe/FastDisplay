@@ -62,7 +62,6 @@ FastDisplay is a **minimal, native, fast** library that provides:
 - **⚡ Zero Dependencies** — Java 17+ and Windows only
 - **🎯 Event-Driven** — Instant callbacks via Windows messages
 
-> **Note:** Window styling (titlebar colors, transparency, dark mode) has been moved to [FastTheme](https://github.com/andrestubbe/FastTheme).
 
 ---
 

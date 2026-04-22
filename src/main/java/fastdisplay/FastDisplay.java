@@ -3,59 +3,26 @@ package fastdisplay;
 import fastcore.FastCore;
 
 /**
- * FastDisplay - Native Windows Display Monitoring API for Java.
- * 
- * <p>Provides real-time monitoring of display changes (resolution, DPI, refresh rate,
- * orientation) via JNI.</p>
- * 
- * <p><b>Display Monitoring Example:</b></p>
- * <pre>
- * FastDisplay display = new FastDisplay();
- * display.setListener(new FastDisplay.DisplayListener() {
- *     &#64;Override
- *     public void onInitialState(int width, int height, int dpi, int refreshRate,
- *                                Orientation orientation) {
- *         System.out.println("Display: " + width + "x" + height + 
- *                          " | " + dpi + "DPI | " + refreshRate + "Hz");
- *     }
- *     
- *     &#64;Override
- *     public void onResolutionChanged(int w, int h, int dpi, int refresh) {
- *         System.out.println("Resolution changed: " + w + "x" + h);
- *     }
- *     
- *     &#64;Override
- *     public void onDPIChanged(int dpi, int scalePercent) {
- *         System.out.println("DPI changed: " + dpi + " (" + scalePercent + "%)");
- *     }
- *     
- *     &#64;Override
- *     public void onOrientationChanged(Orientation o) {
- *         System.out.println("Orientation: " + o);
- *     }
- * });
- * display.startMonitoring();
- * </pre>
- * 
- * <p><b>Thread Safety:</b> Display monitoring creates a background thread that calls listener
- * methods on the main Java event thread.</p>
- * 
- * <p><b>Platform Support:</b> Windows 10/11 only (uses native Win32 APIs).</p>
- * 
- * @author Andre Stubbe
- * @version 1.0.0
- * @since 1.0.0
- * @see <a href="https://github.com/andrestubbe/FastDisplay">GitHub Repository</a>
- * @see <a href="https://github.com/andrestubbe/FastTheme">FastTheme (Window Styling)</a>
+ * FastDisplay – Native Windows Display Monitoring API for Java.
+ *
+ * <p>Provides real-time monitoring of display changes (resolution, DPI,
+ * refresh rate, orientation, and monitor transitions) via JNI.</p>
+ *
+ * <p>All callbacks occur on the monitoring thread. If UI-thread dispatching
+ * is required (Swing/JavaFX), the application must forward events manually.</p>
+ *
+ * <p><b>Platform:</b> Windows 10/11 (Win32 API)</p>
+ *
+ * @author Andre
+ * @version 1.1.0
  */
 public class FastDisplay {
+
     static {
         FastCore.loadLibrary("fastdisplay");
     }
 
-    /**
-     * Display orientation values returned by the display monitoring API.
-     */
+    /** Display orientation values returned by the native API. */
     public enum Orientation {
         LANDSCAPE,
         PORTRAIT,
@@ -64,24 +31,94 @@ public class FastDisplay {
     }
 
     /**
+     * Immutable monitor information returned by {@link #enumerateMonitors()}.
+     */
+    public static final class MonitorInfo {
+        public final int index;
+        public final int width;
+        public final int height;
+        public final int dpi;
+        public final Orientation orientation;
+        public final int refreshRate;
+        public final boolean hdrEnabled;
+        public final String colorProfile;
+        public final String manufacturer;
+        public final String modelName;
+        public final String serialNumber;
+
+        public MonitorInfo(int index, int width, int height, int dpi,
+                           Orientation orientation, int refreshRate, boolean hdrEnabled, String colorProfile,
+                           String manufacturer, String modelName, String serialNumber) {
+            this.index = index;
+            this.width = width;
+            this.height = height;
+            this.dpi = dpi;
+            this.orientation = orientation;
+            this.refreshRate = refreshRate;
+            this.hdrEnabled = hdrEnabled;
+            this.colorProfile = colorProfile;
+            this.manufacturer = manufacturer;
+            this.modelName = modelName;
+            this.serialNumber = serialNumber;
+        }
+
+        @Override
+        public String toString() {
+            return "Monitor " + index + ": " + width + "x" + height +
+                   " @ " + refreshRate + "Hz, " + dpi + " DPI, " + orientation +
+                   (hdrEnabled ? ", HDR" : "") +
+                   (colorProfile != null && !colorProfile.isEmpty() ? ", ColorProfile=" + colorProfile : "") +
+                   (manufacturer != null && !manufacturer.isEmpty() ? ", Manufacturer=" + manufacturer : "") +
+                   (modelName != null && !modelName.isEmpty() ? ", Model=" + modelName : "");
+        }
+    }
+
+    /**
      * Listener interface for receiving display change events.
      */
     public interface DisplayListener {
+        void onInitialState(int width, int height, int dpi, int refreshRate, Orientation orientation);
         void onResolutionChanged(int width, int height, int dpi, int refreshRate);
         void onDPIChanged(int dpi, int scalePercent);
         void onOrientationChanged(Orientation orientation);
-        void onInitialState(int width, int height, int dpi, int refreshRate, Orientation orientation);
+        void onWindowMonitorChanged(int oldMonitorIndex, int newMonitorIndex, int newDPI);
     }
 
     private DisplayListener listener;
+    private long windowHandle = 0;
 
+    /** Assign a listener for display events. */
     public void setListener(DisplayListener listener) {
         this.listener = listener;
     }
 
-    private void notifyResolutionChanged(int width, int height, int dpi, int orientationOrdinal, int refreshRate) {
+    /**
+     * Set the HWND of the window to track for monitor transitions.
+     * Must be called before {@link #startMonitoring()}.
+     */
+    public void setWindowHandle(long hwnd) {
+        this.windowHandle = hwnd;
+        setWindowHandleNative(hwnd);
+    }
+
+    // -------------------------
+    // Native callbacks → Java
+    // -------------------------
+
+    private void notifyInitialState(int w, int h, int dpi, int orientationOrdinal, int refresh) {
         if (listener != null) {
-            listener.onResolutionChanged(width, height, dpi, refreshRate);
+            listener.onInitialState(w, h, dpi, refresh, Orientation.values()[orientationOrdinal]);
+        }
+    }
+
+    private void notifyResolutionChanged(int w, int h, int dpi, int refresh) {
+        if (listener != null) {
+            listener.onResolutionChanged(w, h, dpi, refresh);
+        }
+    }
+
+    private void notifyOrientationChanged(int orientationOrdinal) {
+        if (listener != null) {
             listener.onOrientationChanged(Orientation.values()[orientationOrdinal]);
         }
     }
@@ -92,12 +129,37 @@ public class FastDisplay {
         }
     }
 
-    private void notifyInitialState(int width, int height, int dpi, int orientationOrdinal, int refreshRate) {
+    private void notifyWindowMonitorChanged(int oldIndex, int newIndex, int newDPI) {
         if (listener != null) {
-            listener.onInitialState(width, height, dpi, refreshRate, Orientation.values()[orientationOrdinal]);
+            listener.onWindowMonitorChanged(oldIndex, newIndex, newDPI);
         }
     }
 
+    // -------------------------
+    // Native API
+    // -------------------------
+
+    /** Start monitoring display changes. */
     public native boolean startMonitoring();
+
+    /** Stop monitoring display changes. */
     public native void stopMonitoring();
+
+    /** Pass window handle to native layer. */
+    private native void setWindowHandleNative(long hwnd);
+
+    /** Enumerate all monitors. */
+    public native MonitorInfo[] enumerateMonitors();
+
+    /** Get DPI for a specific monitor. */
+    public native int getMonitorDPI(int monitorIndex);
+
+    /** Get primary display resolution. */
+    public native int[] getResolution();
+
+    /** Get primary display scale factor (100, 125, 150...). */
+    public native int getScale();
+
+    /** Get primary display orientation. */
+    public native Orientation getOrientation();
 }

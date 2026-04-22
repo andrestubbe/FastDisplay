@@ -13,6 +13,9 @@
 *.obj
 *.o
 
+# BUT include the one in resources for JitPack
+!src/main/resources/native/*
+
 # Build directories
 build/
 target/

@@ -5,7 +5,7 @@ setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 
 echo ===========================================
-echo FastTheme JNI Bridge Build Script
+echo FastDisplay JNI Bridge Build Script
 echo ===========================================
 echo.
 echo Running in: %CD%
@@ -61,28 +61,17 @@ if errorlevel 1 (
 
 :: Create build directories
 if not exist build mkdir build
-if not exist build\classes mkdir build\classes
 
-:: Compile Java classes first
+:: Compile C++ DLL only (Java compilation handled by Maven)
 echo.
-echo Compiling Java classes...
-"%JAVA_HOME%\bin\javac" -d build\classes src\main\java\fasttheme\*.java
-
-:: Generate JNI header
-echo Generating JNI header...
-"%JAVA_HOME%\bin\javac" -h native -d build\classes src\main\java\fasttheme\FastTheme.java
-
-:: Compile
-echo.
-echo Compiling FastTheme JNI Bridge...
+echo Compiling FastDisplay JNI Bridge...
 echo =====================================================
-cl /LD /Fe:build\fasttheme.dll ^
-    native\FastTheme.cpp ^
-    user32.lib gdi32.lib shcore.lib advapi32.lib dwmapi.lib ^
+cl /LD /Fe:build\fastdisplay.dll ^
+    native\FastDisplay.cpp ^
+    user32.lib gdi32.lib shcore.lib advapi32.lib ^
     /I"%JAVA_HOME%\include" ^
     /I"%JAVA_HOME%\include\win32" ^
-    /EHsc /std:c++17 /O2 /W3 ^
-    /link /DEF:native\FastTheme.def
+    /EHsc /std:c++17 /O2 /W3
 
 :: Check result
 if %errorlevel% neq 0 (
@@ -98,20 +87,10 @@ if %errorlevel% neq 0 (
 :: Copy to resources
 echo.
 echo Copying DLL to resources...
-copy build\fasttheme.dll src\main\resources\native\fasttheme.dll
+copy build\fastdisplay.dll src\main\resources\native\fastdisplay.dll
 
-:: Create manifest file
-echo Manifest-Version: 1.0 > build\manifest.txt
-echo Main-Class: fasttheme.Demo >> build\manifest.txt
-
-:: Create fat jar
-echo Creating FastTheme.jar...
-cd build\classes
-"%JAVA_HOME%\bin\jar" cfm ..\FastTheme.jar ..\manifest.txt fasttheme\*.class
-cd ..\..
-
-:: Copy DLL to same directory as jar for easy testing
-copy build\fasttheme.dll FastTheme.dll
+:: Copy DLL to native folder for demo
+copy build\fastdisplay.dll native\fastdisplay.dll
 
 :: Success
 echo.
@@ -119,11 +98,12 @@ echo =====================================================
 echo BUILD SUCCESSFUL!
 echo =====================================================
 echo.
-echo FastTheme JNI Bridge created with:
+echo FastDisplay JNI Bridge created with:
+echo - Multi-monitor enumeration
 echo - Resolution change detection (WM_DISPLAYCHANGE)
 echo - DPI scale change detection (WM_DPICHANGED)
-echo - Windows display settings monitoring
+echo - Orientation monitoring
 echo.
-echo Run demo with: java -jar FastTheme.jar
+echo DLL: build\fastdisplay.dll
 echo.
 pause

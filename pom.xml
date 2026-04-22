@@ -6,13 +6,13 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>io.github.andrestubbe</groupId>
-    <artifactId>fasttheme</artifactId>
-    <version>1.3.9</version>
+    <artifactId>fastdisplay</artifactId>
+    <version>1.1.0</version>
     <packaging>jar</packaging>
 
-    <name>FastTheme</name>
-    <description>OS-aware Display/Theme change monitor for Java</description>
-    <url>https://github.com/andrestubbe/fasttheme</url>
+    <name>FastDisplay</name>
+    <description>Native Windows Display Monitoring API for Java</description>
+    <url>https://github.com/andrestubbe/FastDisplay</url>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
@@ -37,9 +37,9 @@
     </developers>
 
     <scm>
-        <connection>scm:git:git://github.com/andrestubbe/fasttheme.git</connection>
-        <developerConnection>scm:git:ssh://github.com:andrestubbe/fasttheme.git</developerConnection>
-        <url>https://github.com/andrestubbe/fasttheme/tree/main</url>
+        <connection>scm:git:git://github.com/andrestubbe/FastDisplay.git</connection>
+        <developerConnection>scm:git:ssh://github.com:andrestubbe/FastDisplay.git</developerConnection>
+        <url>https://github.com/andrestubbe/FastDisplay/tree/main</url>
     </scm>
 
     <repositories>
@@ -52,7 +52,7 @@
     <dependencies>
         <!-- FastCore - Unified JNI loader -->
         <dependency>
-            <groupId>com.github.andrestubbe</groupId>
+            <groupId>io.github.andrestubbe</groupId>
             <artifactId>fastcore</artifactId>
             <version>v1.0.0</version>
         </dependency>
@@ -112,7 +112,6 @@
                     <archive>
                         <manifest>
                             <addClasspath>true</addClasspath>
-                            <mainClass>fasttheme.Demo</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
@@ -166,7 +165,7 @@
                                 <resource>
                                     <directory>build</directory>
                                     <includes>
-                                        <include>fasttheme.dll</include>
+                                        <include>fastdisplay.dll</include>
                                     </includes>
                                 </resource>
                             </resources>
