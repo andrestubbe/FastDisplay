@@ -29,7 +29,7 @@
     <dependencies>
         <!-- FastDisplay from local Maven repository -->
         <dependency>
-            <groupId>io.github.andrestubbe</groupId>
+            <groupId>com.github.andrestubbe</groupId>
             <artifactId>fastdisplay</artifactId>
             <version>v1.0.0</version>
         </dependency>

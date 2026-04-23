@@ -91,7 +91,7 @@ FastDisplay is a **minimal, native, fast** library that provides:
 </repositories>
 
 <dependency>
-    <groupId>io.github.andrestubbe</groupId>
+    <groupId>com.github.andrestubbe</groupId>
     <artifactId>fastdisplay</artifactId>
     <version>v1.0.0</version>
 </dependency>
@@ -112,7 +112,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'io.github.andrestubbe:fastdisplay:v1.0.0'
+    implementation 'com.github.andrestubbe:fastdisplay:v1.0.0'
     implementation 'com.github.andrestubbe:fastcore:v1.0.0'
 }
 ```
