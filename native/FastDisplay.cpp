@@ -337,6 +337,9 @@ static VOID CALLBACK DPICallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD d
                 // DPI changed - notify Java with resolution event
                 int oldDpi = monitors[i].dpi;
                 monitors[i].dpi = newDpi;
+                char debugMsg[256];
+                sprintf_s(debugMsg, "[DEBUG] DPI change detected via POLLING: monitor=%d, oldDpi=%d, newDpi=%d\n", i, oldDpi, newDpi);
+                OutputDebugStringA(debugMsg);
                 if (g_notifyMethodId) {
                     env->CallVoidMethod(g_displayObj, g_notifyMethodId, i,
                         monitors[i].width, monitors[i].height, newDpi, monitors[i].refreshRate);
@@ -595,6 +598,8 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
                     prcNewWindow->bottom - prcNewWindow->top,
                     SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW);
             }
+
+            OutputDebugStringA("[DEBUG] DPI change detected via WM_DPICHANGED\n");
 
             // Fire resolution event with new DPI (combining DPI with resolution)
             if (g_jvm && g_displayObj && g_notifyMethodId) {
