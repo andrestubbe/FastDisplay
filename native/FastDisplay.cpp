@@ -672,24 +672,19 @@ static DWORD WINAPI MonitorThread(LPVOID lpParam) {
         return 1;
     }
 
-    // Create a 1x1 pixel visible window off-screen to receive WM_DPICHANGED
-    // FastTheme approach: off-screen, layered, transparent, topmost
+    // Use normal window without WS_VISIBLE (like backup version) to receive WM_DPICHANGED
     HWND hwnd = CreateWindowExA(
-        WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED,  // Tool window, no activate, layered for transparency
+        0,
         "FastDisplayMonitor",
         "FastDisplay Monitor",
-        WS_VISIBLE | WS_POPUP,  // Visible popup window (no border)
-        -10, -10, 1, 1,         // Off-screen, 1x1 pixel
+        WS_OVERLAPPEDWINDOW,
+        0, 0, 0, 0,
         NULL, NULL, GetModuleHandleA(NULL), NULL
     );
 
     if (!hwnd) {
         return 1;
     }
-
-    // Make it fully transparent and topmost so it doesn't interfere (FastTheme approach)
-    SetLayeredWindowAttributes(hwnd, RGB(0,0,0), 0, LWA_ALPHA);
-    SetWindowPos(hwnd, HWND_TOPMOST, -10, -10, 1, 1, SWP_NOACTIVATE);
 
     g_hwnd = hwnd;
 
