@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.github.andrestubbe</groupId>
-    <artifactId>fastdisplay</artifactId>
+    <artifactId>FastDisplay</artifactId>
     <version>v1.0.0</version>
     <packaging>jar</packaging>
 

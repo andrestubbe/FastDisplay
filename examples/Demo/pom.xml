@@ -30,7 +30,7 @@
         <!-- FastDisplay from local Maven repository -->
         <dependency>
             <groupId>com.github.andrestubbe</groupId>
-            <artifactId>fastdisplay</artifactId>
+            <artifactId>FastDisplay</artifactId>
             <version>v1.0.0</version>
         </dependency>
         <!-- FastCore required for native library loading -->
