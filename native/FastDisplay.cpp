@@ -51,14 +51,9 @@ static std::atomic<bool> g_refreshRateMonitoring(false);
 static UINT_PTR g_dpiTimer = 0;
 static std::atomic<bool> g_dpiMonitoring(false);
 
-// Window position polling timer
-static UINT_PTR g_windowPosTimer = 0;
-static std::atomic<bool> g_windowPosMonitoring(false);
-
 // Forward declarations for timer callbacks
 static VOID CALLBACK RefreshRateCallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime);
 static VOID CALLBACK DPICallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime);
-static VOID CALLBACK WindowPosCallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime);
 
 // Forward declaration for helper function
 static int getMonitorIndexFromWindow(HWND hwnd);
@@ -332,9 +327,8 @@ static VOID CALLBACK DPICallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD d
         if (SUCCEEDED(GetDpiForMonitor(monitors[i].handle, MDT_EFFECTIVE_DPI, &dpiX, &dpiY))) {
             int newDpi = (int)dpiX;
             if (newDpi != monitors[i].dpi) {
-                // DPI changed
+                // DPI changed - notify Java with resolution event
                 monitors[i].dpi = newDpi;
-                // Notify Java with resolution event (including DPI)
                 if (g_notifyMethodId) {
                     env->CallVoidMethod(g_displayObj, g_notifyMethodId, i,
                         monitors[i].width, monitors[i].height, newDpi, monitors[i].refreshRate);
@@ -345,41 +339,6 @@ static VOID CALLBACK DPICallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD d
 
     if (didAttach) {
         g_jvm->DetachCurrentThread();
-    }
-}
-
-// Window position polling callback
-static VOID CALLBACK WindowPosCallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime) {
-    if (!g_jvm || !g_displayObj || g_trackedWindow == nullptr) return;
-
-    int newMonitorIndex = getMonitorIndexFromWindow(g_trackedWindow);
-    if (newMonitorIndex != -1 && newMonitorIndex != g_lastMonitorIndex) {
-        int oldMonitorIndex = g_lastMonitorIndex;
-        g_lastMonitorIndex = newMonitorIndex;
-
-        int newDpi = monitors[newMonitorIndex].dpi;
-
-        if (g_jvm && g_displayObj && g_notifyWindowMonitorChangedMethodId) {
-            JNIEnv* env;
-            jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
-            bool didAttach = false;
-
-            if (attachResult == JNI_EDETACHED) {
-                if (g_jvm->AttachCurrentThread((void**)&env, nullptr) == 0) {
-                    didAttach = true;
-                } else {
-                    return;
-                }
-            } else if (attachResult != JNI_OK) {
-                return;
-            }
-
-            env->CallVoidMethod(g_displayObj, g_notifyWindowMonitorChangedMethodId, oldMonitorIndex, newMonitorIndex, newDpi);
-
-            if (didAttach) {
-                g_jvm->DetachCurrentThread();
-            }
-        }
     }
 }
 
@@ -629,7 +588,8 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
                     SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW);
             }
 
-            if (g_jvm && g_displayObj && g_notifyDPIMethodId) {
+            // Fire resolution event with new DPI (combining DPI with resolution)
+            if (g_jvm && g_displayObj && g_notifyMethodId) {
                 JNIEnv* env;
                 jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
                 bool didAttach = false;
@@ -644,9 +604,6 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
                     return 0;
                 }
 
-                int dpi = (int)HIWORD(wParam);
-                int scalePercent = dpi * 100 / 96;
-
                 // Get monitor index for this DPI change
                 HMONITOR hMonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
                 int monitorIndex = 0;
@@ -654,12 +611,24 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
                     monitorIndex = findMonitorIndex(hMonitor);
                 }
 
-                env->CallVoidMethod(g_displayObj, g_notifyDPIMethodId, monitorIndex, dpi, scalePercent);
+                // Get current resolution for this monitor
+                int width = 0, height = 0, refreshRate = 60;
+                {
+                    std::lock_guard<std::mutex> lock(monitorMutex);
+                    if (monitorIndex >= 0 && monitorIndex < monitorCount) {
+                        width = monitors[monitorIndex].width;
+                        height = monitors[monitorIndex].height;
+                        refreshRate = monitors[monitorIndex].refreshRate;
+                        monitors[monitorIndex].dpi = newDpi;  // Update DPI
+                    }
+                }
+
+                // Fire resolution event with new DPI
+                env->CallVoidMethod(g_displayObj, g_notifyMethodId, monitorIndex, width, height, newDpi, refreshRate);
 
                 if (didAttach) {
                     g_jvm->DetachCurrentThread();
                 }
-            } else {
             }
             return 0;
         }
@@ -676,54 +645,8 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
 }
 
 // ============================================================================
-// Window Monitor Tracking via WinEventHook (FIX: replaced WM_MOVE)
+// Monitor Thread
 // ============================================================================
-
-static HWINEVENTHOOK g_hook = nullptr;
-static HANDLE g_registryEvent = nullptr;
-static HANDLE g_registryThread = nullptr;
-static bool g_monitorColorProfile = true;  // Flag to enable/disable color profile monitoring
-
-static void CALLBACK WinEventProc(
-    HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd, LONG idObject, LONG idChild, DWORD dwEventThread, DWORD dwmsEventTime)
-{
-    // Only process window location changes for the tracked window
-    if (event == EVENT_OBJECT_LOCATIONCHANGE && idObject == OBJID_WINDOW) {
-        HWND tracked = g_trackedWindow;
-        if (tracked == nullptr || hwnd != tracked)
-            return;
-
-        int newMonitorIndex = getMonitorIndexFromWindow(tracked);
-        if (newMonitorIndex != -1 && newMonitorIndex != g_lastMonitorIndex) {
-            int oldMonitorIndex = g_lastMonitorIndex;
-            g_lastMonitorIndex = newMonitorIndex;
-
-            int newDpi = monitors[newMonitorIndex].dpi;
-
-            if (g_jvm && g_displayObj && g_notifyWindowMonitorChangedMethodId) {
-                JNIEnv* env;
-                jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
-                bool didAttach = false;
-
-                if (attachResult == JNI_EDETACHED) {
-                    if (g_jvm->AttachCurrentThread((void**)&env, nullptr) == 0) {
-                        didAttach = true;
-                    } else {
-                        return;
-                    }
-                } else if (attachResult != JNI_OK) {
-                    return;
-                }
-
-                env->CallVoidMethod(g_displayObj, g_notifyWindowMonitorChangedMethodId, oldMonitorIndex, newMonitorIndex, newDpi);
-
-                if (didAttach) {
-                    g_jvm->DetachCurrentThread();
-                }
-            }
-        }
-    }
-}
 
 static DWORD WINAPI MonitorThread(LPVOID lpParam) {
     // Set DPI awareness BEFORE creating the window (FastTheme approach)
@@ -767,10 +690,6 @@ static DWORD WINAPI MonitorThread(LPVOID lpParam) {
     g_dpiMonitoring.store(true);
     g_dpiTimer = SetTimer(hwnd, 2, 500, DPICallback);
 
-    // Start window position polling timer (every 500ms)
-    g_windowPosMonitoring.store(true);
-    g_windowPosTimer = SetTimer(hwnd, 3, 500, WindowPosCallback);
-
     MSG msg = { 0 };
     while (GetMessage(&msg, nullptr, 0, 0)) {
         TranslateMessage(&msg);
@@ -791,19 +710,16 @@ static DWORD WINAPI MonitorThread(LPVOID lpParam) {
     }
     g_dpiMonitoring.store(false);
 
-    // Cleanup window position timer
-    if (g_windowPosTimer != 0) {
-        KillTimer(hwnd, g_windowPosTimer);
-        g_windowPosTimer = 0;
-    }
-    g_windowPosMonitoring.store(false);
-
     return 0;
 }
 
 // ============================================================================
 // Registry Monitoring for Color Profile Changes
 // ============================================================================
+
+static HANDLE g_registryEvent = nullptr;
+static HANDLE g_registryThread = nullptr;
+static bool g_monitorColorProfile = true;  // Flag to enable/disable color profile monitoring
 
 static DWORD WINAPI RegistryMonitorThread(LPVOID lpParam) {
     // Monitor per-user profile associations (Microsoft-documented path)
@@ -950,11 +866,6 @@ JNIEXPORT jboolean JNICALL Java_fastdisplay_FastDisplay_startMonitoring(JNIEnv* 
             attempts++;
         }
         if (g_hwnd.load() != nullptr) {  // FIX: atomic load
-            // Set up WinEventHook for window move/location change detection
-            g_hook = SetWinEventHook(
-                EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_LOCATIONCHANGE,
-                nullptr, WinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
-
             // Start registry monitoring for color profile changes
             g_registryEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
             if (g_registryEvent) {
@@ -974,11 +885,6 @@ JNIEXPORT void JNICALL Java_fastdisplay_FastDisplay_stopMonitoring(JNIEnv* env, 
     if (hwnd) {
         PostMessageA(hwnd, WM_CLOSE, 0, 0);
         g_hwnd.store(nullptr);  // FIX: atomic store
-    }
-
-    if (g_hook) {
-        UnhookWinEvent(g_hook);
-        g_hook = nullptr;
     }
 
     // Stop registry monitoring
@@ -1096,18 +1002,6 @@ JNIEXPORT void JNICALL Java_fastdisplay_FastDisplay_setWindowHandleNative(JNIEnv
     g_trackedWindow = (HWND)hwnd;
     if (g_trackedWindow != nullptr) {
         g_lastMonitorIndex = getMonitorIndexFromWindow(g_trackedWindow);
-        
-        // Install WinEventHook for window monitor tracking
-        if (g_hook == nullptr) {
-            g_hook = SetWinEventHook(
-                EVENT_OBJECT_LOCATIONCHANGE,
-                EVENT_OBJECT_LOCATIONCHANGE,
-                nullptr,
-                WinEventProc,
-                0, 0,
-                WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS
-            );
-        }
     }
 }
 
