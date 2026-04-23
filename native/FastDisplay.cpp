@@ -268,7 +268,14 @@ static int lastWidth = 0;
 static int lastHeight = 0;
 static int lastDpi = 0;
 static int lastOrientation = 0;
-static char lastColorProfiles[16][MAX_PATH] = {0};  // Track last color profile per monitor, initialized to empty
+static char lastColorProfiles[16][MAX_PATH];  // Track last color profile per monitor
+
+// Initialize color profile tracking
+static void initColorProfileTracking() {
+    for (int i = 0; i < 16; i++) {
+        lastColorProfiles[i][0] = '\0';
+    }
+}
 
 static int getMonitorIndexFromWindow(HWND hwnd) {
     if (hwnd == nullptr) return -1;
@@ -305,18 +312,17 @@ static int findMonitorIndex(HMONITOR hMonitor) {
 }
 
 static void sendInitialState() {
-    if (!g_jvm || !g_displayObj) return;
+    if (g_jvm == nullptr || g_displayObj == nullptr) return;
 
     JNIEnv* env;
     jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
     bool didAttach = false;
 
     if (attachResult == JNI_EDETACHED) {
-        if (g_jvm->AttachCurrentThread((void**)&env, nullptr) == 0) {
-            didAttach = true;
-        } else {
+        if (g_jvm->AttachCurrentThread((void**)&env, nullptr) != 0) {
             return;
         }
+        didAttach = true;
     } else if (attachResult != JNI_OK) {
         return;
     }
@@ -364,14 +370,6 @@ static void sendInitialState() {
     lastHeight = height;
     lastDpi = dpi;
     lastOrientation = orientation;
-
-    // Initialize color profile tracking
-    {
-        std::lock_guard<std::mutex> lock(monitorMutex);
-        for (int i = 0; i < monitorCount; i++) {
-            strcpy_s(lastColorProfiles[i], monitors[i].colorProfile);
-        }
-    }
 
     if (didAttach) {
         g_jvm->DetachCurrentThread();
@@ -791,8 +789,8 @@ static DWORD WINAPI RegistryMonitorThread(LPVOID lpParam) {
                             jstring profile = env->NewStringUTF(monitors[i].colorProfile);
                             env->CallVoidMethod(g_displayObj, g_notifyColorProfileChangedMethodId, i, profile);
                             env->DeleteLocalRef(profile);
-                            // Update last known profile
-                            strcpy_s(lastColorProfiles[i], monitors[i].colorProfile);
+                            // Update tracking
+                            strncpy_s(lastColorProfiles[i], MAX_PATH, monitors[i].colorProfile, _TRUNCATE);
                         }
                     }
 
@@ -840,6 +838,9 @@ JNIEXPORT jboolean JNICALL Java_fastdisplay_FastDisplay_startMonitoring(JNIEnv* 
     g_notifyOrientationChangedMethodId = env->GetMethodID(cls, "notifyOrientationChanged", "(II)V");
     g_notifyWindowMonitorChangedMethodId = env->GetMethodID(cls, "notifyWindowMonitorChanged", "(III)V");
     g_notifyColorProfileChangedMethodId = env->GetMethodID(cls, "notifyColorProfileChanged", "(ILjava/lang/String;)V");
+
+    // Initialize color profile tracking
+    initColorProfileTracking();
 
     if (!g_notifyMethodId || !g_notifyDPIMethodId || !g_notifyInitialStateMethodId || !g_notifyOrientationChangedMethodId || !g_notifyColorProfileChangedMethodId) {
          return JNI_FALSE;
