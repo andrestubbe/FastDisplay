@@ -304,7 +304,11 @@ static VOID CALLBACK RefreshRateCallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent,
 
 // DPI polling callback (backup for WM_DPICHANGED)
 static VOID CALLBACK DPICallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime) {
-    if (!g_jvm || !g_displayObj) return;
+    printf("[DEBUG] DPICallback: Called (id=%llu)\n", (unsigned long long)idEvent);
+    if (!g_jvm || !g_displayObj) {
+        printf("[DEBUG] DPICallback: Missing g_jvm=%p, g_displayObj=%p\n", (void*)g_jvm, (void*)g_displayObj);
+        return;
+    }
 
     JNIEnv* env;
     jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
@@ -689,13 +693,17 @@ static DWORD WINAPI MonitorThread(LPVOID lpParam) {
 
     g_hwnd = hwnd;
 
+    printf("[DEBUG] MonitorThread: Window created, hwnd=%p\n", (void*)hwnd);
+
     // Start refresh rate polling timer (every 500ms)
     g_refreshRateMonitoring.store(true);
     g_refreshRateTimer = SetTimer(hwnd, 1, 500, RefreshRateCallback);
+    printf("[DEBUG] MonitorThread: Refresh rate timer started, id=%llu\n", (unsigned long long)g_refreshRateTimer);
 
     // Start DPI polling timer (every 500ms)
     g_dpiMonitoring.store(true);
     g_dpiTimer = SetTimer(hwnd, 2, 500, DPICallback);
+    printf("[DEBUG] MonitorThread: DPI timer started, id=%llu\n", (unsigned long long)g_dpiTimer);
 
     MSG msg = { 0 };
     while (GetMessage(&msg, nullptr, 0, 0)) {
