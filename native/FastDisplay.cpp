@@ -537,6 +537,13 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
         }
 
         case WM_SETTINGCHANGE: {
+            // Re-enumerate monitors to get current state
+            {
+                std::lock_guard<std::mutex> lock(monitorMutex);
+                monitorCount = 0;
+                EnumDisplayMonitors(nullptr, nullptr, EnumMonitorsCallback, 0);
+            }
+
             // Check if this is a DPI change by querying current DPI
             HMONITOR hMonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
             if (hMonitor) {
