@@ -320,6 +320,13 @@ static VOID CALLBACK DPICallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD d
         return;
     }
 
+    // Re-enumerate monitors to get current state
+    {
+        std::lock_guard<std::mutex> lock(monitorMutex);
+        monitorCount = 0;
+        EnumDisplayMonitors(nullptr, nullptr, EnumMonitorsCallback, 0);
+    }
+
     // Check each monitor for DPI changes
     std::lock_guard<std::mutex> lock(monitorMutex);
     for (int i = 0; i < monitorCount; i++) {
@@ -328,6 +335,7 @@ static VOID CALLBACK DPICallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD d
             int newDpi = (int)dpiX;
             if (newDpi != monitors[i].dpi) {
                 // DPI changed - notify Java with resolution event
+                int oldDpi = monitors[i].dpi;
                 monitors[i].dpi = newDpi;
                 if (g_notifyMethodId) {
                     env->CallVoidMethod(g_displayObj, g_notifyMethodId, i,
@@ -611,20 +619,20 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
                     monitorIndex = findMonitorIndex(hMonitor);
                 }
 
-                // Get current resolution for this monitor
-                int width = 0, height = 0, refreshRate = 60;
+                // Re-enumerate monitors to get updated resolution (DPI changes often accompany resolution changes)
                 {
                     std::lock_guard<std::mutex> lock(monitorMutex);
+                    monitorCount = 0;
+                    EnumDisplayMonitors(nullptr, nullptr, EnumMonitorsCallback, 0);
                     if (monitorIndex >= 0 && monitorIndex < monitorCount) {
-                        width = monitors[monitorIndex].width;
-                        height = monitors[monitorIndex].height;
-                        refreshRate = monitors[monitorIndex].refreshRate;
-                        monitors[monitorIndex].dpi = newDpi;  // Update DPI
+                        int width = monitors[monitorIndex].width;
+                        int height = monitors[monitorIndex].height;
+                        int refreshRate = monitors[monitorIndex].refreshRate;
+                        monitors[monitorIndex].dpi = newDpi;  // Ensure DPI is updated
+                        // Fire resolution event with new DPI
+                        env->CallVoidMethod(g_displayObj, g_notifyMethodId, monitorIndex, width, height, newDpi, refreshRate);
                     }
                 }
-
-                // Fire resolution event with new DPI
-                env->CallVoidMethod(g_displayObj, g_notifyMethodId, monitorIndex, width, height, newDpi, refreshRate);
 
                 if (didAttach) {
                     g_jvm->DetachCurrentThread();
