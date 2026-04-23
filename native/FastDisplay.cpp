@@ -537,6 +537,42 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
         }
 
         case WM_SETTINGCHANGE: {
+            // Check if this is a DPI change by querying current DPI
+            HMONITOR hMonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            if (hMonitor) {
+                UINT dpiX = 96, dpiY = 96;
+                if (SUCCEEDED(GetDpiForMonitor(hMonitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY))) {
+                    int newDpi = (int)dpiX;
+                    int monitorIndex = findMonitorIndex(hMonitor);
+                    if (monitorIndex >= 0 && newDpi != monitors[monitorIndex].dpi) {
+                        // DPI changed - notify Java with resolution event
+                        int oldDpi = monitors[monitorIndex].dpi;
+                        monitors[monitorIndex].dpi = newDpi;
+                        if (g_jvm && g_displayObj && g_notifyMethodId) {
+                            JNIEnv* env;
+                            jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
+                            bool didAttach = false;
+
+                            if (attachResult == JNI_EDETACHED) {
+                                if (g_jvm->AttachCurrentThread((void**)&env, nullptr) == 0) {
+                                    didAttach = true;
+                                } else {
+                                    return 0;
+                                }
+                            } else if (attachResult != JNI_OK) {
+                                return 0;
+                            }
+
+                            env->CallVoidMethod(g_displayObj, g_notifyMethodId, monitorIndex,
+                                monitors[monitorIndex].width, monitors[monitorIndex].height, newDpi, monitors[monitorIndex].refreshRate);
+
+                            if (didAttach) {
+                                g_jvm->DetachCurrentThread();
+                            }
+                        }
+                    }
+                }
+            }
             // Check if this is a color profile change
             if (lParam) {
                 LPCWSTR lParamStr = (LPCWSTR)lParam;
@@ -545,15 +581,6 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
                     wcsstr(lParamStr, L"Color") != nullptr ||
                     wcsstr(lParamStr, L"Display") != nullptr) {
                     // Color profile change detected
-                }
-            }
-            // Check if this is a DPI change by querying current DPI
-            HMONITOR hMonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-            if (hMonitor) {
-                UINT dpiX = 96, dpiY = 96;
-                if (SUCCEEDED(GetDpiForMonitor(hMonitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY))) {
-                    int scalePercent = (dpiX * 100) / 96;
-                    // DPI changed - could notify Java if needed
                 }
             }
             return 0;
