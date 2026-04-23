@@ -733,21 +733,21 @@ static DWORD WINAPI MonitorThread(LPVOID lpParam) {
 
     g_hwnd = hwnd;
 
-    char debugMsg[256];
-    sprintf_s(debugMsg, "MonitorThread: Window created, hwnd=%p", (void*)hwnd);
-    logDebug(debugMsg);
+    // char debugMsg[256];
+    // sprintf_s(debugMsg, "MonitorThread: Window created, hwnd=%p", (void*)hwnd);
+    // logDebug(debugMsg);
 
     // Start refresh rate polling timer (every 500ms)
     g_refreshRateMonitoring.store(true);
     g_refreshRateTimer = SetTimer(hwnd, 1, 500, RefreshRateCallback);
-    sprintf_s(debugMsg, "MonitorThread: Refresh rate timer started, id=%llu", (unsigned long long)g_refreshRateTimer);
-    logDebug(debugMsg);
+    // sprintf_s(debugMsg, "MonitorThread: Refresh rate timer started, id=%llu", (unsigned long long)g_refreshRateTimer);
+    // logDebug(debugMsg);
 
     // Start DPI polling timer (every 500ms)
     g_dpiMonitoring.store(true);
     g_dpiTimer = SetTimer(hwnd, 2, 500, DPICallback);
-    sprintf_s(debugMsg, "MonitorThread: DPI timer started, id=%llu", (unsigned long long)g_dpiTimer);
-    logDebug(debugMsg);
+    // sprintf_s(debugMsg, "MonitorThread: DPI timer started, id=%llu", (unsigned long long)g_dpiTimer);
+    // logDebug(debugMsg);
 
     MSG msg = { 0 };
     while (GetMessage(&msg, nullptr, 0, 0)) {
