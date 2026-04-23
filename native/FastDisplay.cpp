@@ -366,15 +366,12 @@ static VOID CALLBACK DPICallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD d
 
     // Check each monitor for DPI changes
     std::lock_guard<std::mutex> lock(monitorMutex);
-    char debugMsg[256];
     for (int i = 0; i < monitorCount; i++) {
         UINT dpiX = 96, dpiY = 96;
         if (SUCCEEDED(GetDpiForMonitor(monitors[i].handle, MDT_EFFECTIVE_DPI, &dpiX, &dpiY))) {
             int newDpi = (int)dpiX;
             if (newDpi != oldDpiValues[i]) {
                 // DPI changed - notify Java with resolution event
-                sprintf_s(debugMsg, "DPI change detected via POLLING: monitor=%d, oldDpi=%d, newDpi=%d", i, oldDpiValues[i], newDpi);
-                logDebug(debugMsg);
                 if (g_notifyMethodId) {
                     env->CallVoidMethod(g_displayObj, g_notifyMethodId, i,
                         monitors[i].width, monitors[i].height, newDpi, monitors[i].refreshRate);
@@ -506,9 +503,6 @@ static void sendInitialState() {
 static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch (uMsg) {
         case WM_DISPLAYCHANGE: {
-            char debugMsg[256];
-            sprintf_s(debugMsg, "WM_DISPLAYCHANGE received");
-            logDebug(debugMsg);
             // Check if monitor count changed (multi-monitor connect/disconnect)
             int oldMonitorCount = monitorCount;
             int newMonitorCount = 0;
@@ -603,9 +597,6 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
         }
 
         case WM_SETTINGCHANGE: {
-            char debugMsg[256];
-            sprintf_s(debugMsg, "WM_SETTINGCHANGE received");
-            logDebug(debugMsg);
             // Check if this is a color profile change
             if (lParam) {
                 LPCWSTR lParamStr = (LPCWSTR)lParam;
@@ -639,10 +630,6 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
                     prcNewWindow->bottom - prcNewWindow->top,
                     SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW);
             }
-
-            char debugMsg[256];
-            sprintf_s(debugMsg, "DPI change detected via WM_DPICHANGED: newDpi=%d", newDpi);
-            logDebug(debugMsg);
 
             // Fire resolution event with new DPI (combining DPI with resolution)
             if (g_jvm && g_displayObj && g_notifyMethodId) {
@@ -733,21 +720,13 @@ static DWORD WINAPI MonitorThread(LPVOID lpParam) {
 
     g_hwnd = hwnd;
 
-    char debugMsg[256];
-    sprintf_s(debugMsg, "MonitorThread: Window created, hwnd=%p", (void*)hwnd);
-    logDebug(debugMsg);
-
     // Start refresh rate polling timer (every 500ms)
     g_refreshRateMonitoring.store(true);
     g_refreshRateTimer = SetTimer(hwnd, 1, 500, RefreshRateCallback);
-    sprintf_s(debugMsg, "MonitorThread: Refresh rate timer started, id=%llu", (unsigned long long)g_refreshRateTimer);
-    logDebug(debugMsg);
 
     // Start DPI polling timer (every 500ms)
     g_dpiMonitoring.store(true);
     g_dpiTimer = SetTimer(hwnd, 2, 500, DPICallback);
-    sprintf_s(debugMsg, "MonitorThread: DPI timer started, id=%llu", (unsigned long long)g_dpiTimer);
-    logDebug(debugMsg);
 
     MSG msg = { 0 };
     while (GetMessage(&msg, nullptr, 0, 0)) {
