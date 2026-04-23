@@ -44,56 +44,8 @@ static int monitorCount = 0;
 static MonitorInfo monitors[16];  // Support up to 16 monitors
 
 // Refresh rate polling timer
-static HANDLE g_refreshRateTimer = nullptr;
+static UINT_PTR g_refreshRateTimer = 0;
 static std::atomic<bool> g_refreshRateMonitoring(false);
-
-// Refresh rate polling callback
-static VOID CALLBACK RefreshRateCallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime) {
-    if (!g_jvm || !g_displayObj) return;
-
-    JNIEnv* env;
-    jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
-    bool didAttach = false;
-
-    if (attachResult == JNI_EDETACHED) {
-        if (g_jvm->AttachCurrentThread((void**)&env, nullptr) == 0) {
-            didAttach = true;
-        } else {
-            return;
-        }
-    } else if (attachResult != JNI_OK) {
-        return;
-    }
-
-    // Check each monitor for refresh rate changes
-    std::lock_guard<std::mutex> lock(monitorMutex);
-    for (int i = 0; i < monitorCount; i++) {
-        MONITORINFOEXW mi = {};
-        mi.cbSize = sizeof(mi);
-        if (GetMonitorInfoW(monitors[i].handle, (LPMONITORINFO)&mi)) {
-            DEVMODEW dm = {};
-            dm.dmSize = sizeof(dm);
-            if (EnumDisplaySettingsExW(mi.szDevice, ENUM_CURRENT_SETTINGS, &dm, 0)) {
-                if (dm.dmFields & DM_DISPLAYFREQUENCY) {
-                    int newRefreshRate = dm.dmDisplayFrequency;
-                    if (newRefreshRate != monitors[i].refreshRate) {
-                        // Refresh rate changed
-                        monitors[i].refreshRate = newRefreshRate;
-                        // Notify Java
-                        if (g_notifyMethodId) {
-                            env->CallVoidMethod(g_displayObj, g_notifyMethodId, i,
-                                monitors[i].width, monitors[i].height, monitors[i].dpi, newRefreshRate);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (didAttach) {
-        g_jvm->DetachCurrentThread();
-    }
-}
 
 // Helper function to detect HDR support for a monitor
 static bool isMonitorHDR(HMONITOR hMonitor) {
@@ -291,7 +243,54 @@ static int lastDpi = 0;
 static int lastOrientation = 0;
 static char lastColorProfiles[16][MAX_PATH];  // Track last color profile per monitor
 
-// Initialize color profile tracking
+// Refresh rate polling callback
+static VOID CALLBACK RefreshRateCallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime) {
+    if (!g_jvm || !g_displayObj) return;
+
+    JNIEnv* env;
+    jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
+    bool didAttach = false;
+
+    if (attachResult == JNI_EDETACHED) {
+        if (g_jvm->AttachCurrentThread((void**)&env, nullptr) == 0) {
+            didAttach = true;
+        } else {
+            return;
+        }
+    } else if (attachResult != JNI_OK) {
+        return;
+    }
+
+    // Check each monitor for refresh rate changes
+    std::lock_guard<std::mutex> lock(monitorMutex);
+    for (int i = 0; i < monitorCount; i++) {
+        MONITORINFOEXW mi = {};
+        mi.cbSize = sizeof(mi);
+        if (GetMonitorInfoW(monitors[i].handle, (LPMONITORINFO)&mi)) {
+            DEVMODEW dm = {};
+            dm.dmSize = sizeof(dm);
+            if (EnumDisplaySettingsExW(mi.szDevice, ENUM_CURRENT_SETTINGS, &dm, 0)) {
+                if (dm.dmFields & DM_DISPLAYFREQUENCY) {
+                    int newRefreshRate = dm.dmDisplayFrequency;
+                    if (newRefreshRate != monitors[i].refreshRate) {
+                        // Refresh rate changed
+                        monitors[i].refreshRate = newRefreshRate;
+                        // Notify Java
+                        if (g_notifyMethodId) {
+                            env->CallVoidMethod(g_displayObj, g_notifyMethodId, i,
+                                monitors[i].width, monitors[i].height, monitors[i].dpi, newRefreshRate);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (didAttach) {
+        g_jvm->DetachCurrentThread();
+    }
+}
+
 static void initColorProfileTracking() {
     for (int i = 0; i < 16; i++) {
         lastColorProfiles[i][0] = '\0';
@@ -688,9 +687,9 @@ static DWORD WINAPI MonitorThread(LPVOID lpParam) {
     }
 
     // Cleanup refresh rate timer
-    if (g_refreshRateTimer) {
+    if (g_refreshRateTimer != 0) {
         KillTimer(hwnd, g_refreshRateTimer);
-        g_refreshRateTimer = nullptr;
+        g_refreshRateTimer = 0;
     }
     g_refreshRateMonitoring.store(false);
 

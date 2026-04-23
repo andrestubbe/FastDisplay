@@ -19,7 +19,6 @@ if not defined JAVA_HOME (
 if not exist "%JAVA_HOME%\include\jni.h" (
     echo ERROR: Cannot find jni.h in %JAVA_HOME%\include
     echo Please check your Java installation
-    pause
     exit /b 1
 )
 
@@ -30,7 +29,6 @@ if not exist "%VSWHERE%" (
     echo ERROR: vswhere.exe not found!
     echo Visual Studio Installer might be missing.
     echo.
-    pause
     exit /b 1
 )
 
@@ -42,7 +40,6 @@ for /f "usebackq tokens=*" %%i in (`"%VSWHERE%" -latest -products * -requires Mi
 if not defined VS_INSTALL (
     echo ERROR: Visual Studio with C++ tools not found!
     echo.
-    pause
     exit /b 1
 )
 
@@ -55,7 +52,6 @@ echo Setting up Visual Studio environment...
 call "%VCVARS%"
 if errorlevel 1 (
     echo ERROR: Failed to setup VS environment
-    pause
     exit /b 1
 )
 
@@ -80,17 +76,16 @@ if %errorlevel% neq 0 (
     echo COMPILATION FAILED
     echo =====================================================
     echo Check errors above
-    pause
     exit /b 1
 )
 
 :: Copy to resources
 echo.
 echo Copying DLL to resources...
-copy build\fastdisplay.dll src\main\resources\native\fastdisplay.dll
+copy build\fastdisplay.dll src\main\resources\native\fastdisplay.dll >nul
 
 :: Copy DLL to native folder for demo
-copy build\fastdisplay.dll native\fastdisplay.dll
+copy build\fastdisplay.dll native\fastdisplay.dll >nul
 
 :: Success
 echo.
@@ -106,4 +101,4 @@ echo - Orientation monitoring
 echo.
 echo DLL: build\fastdisplay.dll
 echo.
-pause
+
