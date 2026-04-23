@@ -332,14 +332,7 @@ static VOID CALLBACK RefreshRateCallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent,
 
 // DPI polling callback (backup for WM_DPICHANGED)
 static VOID CALLBACK DPICallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime) {
-    char debugMsg[256];
-    sprintf_s(debugMsg, "DPICallback: Called (id=%llu)", (unsigned long long)idEvent);
-    logDebug(debugMsg);
-    if (!g_jvm || !g_displayObj) {
-        sprintf_s(debugMsg, "DPICallback: Missing g_jvm=%p, g_displayObj=%p", (void*)g_jvm, (void*)g_displayObj);
-        logDebug(debugMsg);
-        return;
-    }
+    if (!g_jvm || !g_displayObj) return;
 
     JNIEnv* env;
     jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
@@ -373,12 +366,11 @@ static VOID CALLBACK DPICallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD d
 
     // Check each monitor for DPI changes
     std::lock_guard<std::mutex> lock(monitorMutex);
+    char debugMsg[256];
     for (int i = 0; i < monitorCount; i++) {
         UINT dpiX = 96, dpiY = 96;
         if (SUCCEEDED(GetDpiForMonitor(monitors[i].handle, MDT_EFFECTIVE_DPI, &dpiX, &dpiY))) {
             int newDpi = (int)dpiX;
-            sprintf_s(debugMsg, "POLLING: monitor=%d, oldDpi=%d, currentDpi=%d", i, oldDpiValues[i], newDpi);
-            logDebug(debugMsg);
             if (newDpi != oldDpiValues[i]) {
                 // DPI changed - notify Java with resolution event
                 sprintf_s(debugMsg, "DPI change detected via POLLING: monitor=%d, oldDpi=%d, newDpi=%d", i, oldDpiValues[i], newDpi);
@@ -514,6 +506,9 @@ static void sendInitialState() {
 static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch (uMsg) {
         case WM_DISPLAYCHANGE: {
+            char debugMsg[256];
+            sprintf_s(debugMsg, "WM_DISPLAYCHANGE received");
+            logDebug(debugMsg);
             // Check if monitor count changed (multi-monitor connect/disconnect)
             int oldMonitorCount = monitorCount;
             int newMonitorCount = 0;
@@ -608,6 +603,9 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
         }
 
         case WM_SETTINGCHANGE: {
+            char debugMsg[256];
+            sprintf_s(debugMsg, "WM_SETTINGCHANGE received");
+            logDebug(debugMsg);
             // Check if this is a color profile change
             if (lParam) {
                 LPCWSTR lParamStr = (LPCWSTR)lParam;
