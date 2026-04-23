@@ -114,8 +114,8 @@ public class Demo {
             System.out.printf("%-21s monitor=%s → %s%n",
                 prefixFormatted, monitorStr, orientationName);
         } else if ("[RESOLUTION]".equals(eventType)) {
-            System.out.printf("%-21s monitor=%s → %d×%d @ %d Hz%n",
-                prefixFormatted, monitorStr, width, height, refreshRate);
+            System.out.printf("%-21s monitor=%s → %d×%d @ %d Hz, dpi=%-3d (%-3d%%)%n",
+                prefixFormatted, monitorStr, width, height, refreshRate, dpi, scalePercent);
         } else {
             // FULL or default (PRESENT/CURRENT)
             System.out.printf("%-21s monitor=%s, res=%dx%d, dpi=%-3d, scale=%-3d%%, hz=%-3d, orientation=%s%n",
