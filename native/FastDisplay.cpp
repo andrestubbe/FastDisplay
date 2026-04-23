@@ -258,13 +258,26 @@ static int getMonitorIndexFromWindow(HWND hwnd) {
     return -1;
 }
 
+static int findMonitorIndex(HMONITOR hMonitor) {
+    if (hMonitor == nullptr) return -1;
+
+    std::lock_guard<std::mutex> lock(monitorMutex);
+    for (int i = 0; i < monitorCount; i++) {
+        if (monitors[i].handle == hMonitor) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
 static void sendInitialState() {
     if (g_jvm == nullptr || g_displayObj == nullptr) return;
-    
+
     JNIEnv* env;
     jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
     bool didAttach = false;
-    
+
     if (attachResult == JNI_EDETACHED) {
         if (g_jvm->AttachCurrentThread((void**)&env, nullptr) != 0) {
             return;
@@ -273,19 +286,18 @@ static void sendInitialState() {
     } else if (attachResult != JNI_OK) {
         return;
     }
-    
+
     // Get current display settings
+    int width = 0, height = 0;
     DEVMODE dm = {};
     dm.dmSize = sizeof(dm);
-    int width = GetSystemMetrics(SM_CXSCREEN);
-    int height = GetSystemMetrics(SM_CYSCREEN);
     int refreshRate = 60;
     int orientation = 0;
     int dpi = 96;
-    
+
     if (EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm)) {
-        if (dm.dmFields & DM_PELSWIDTH) width = dm.dmPelsWidth;
-        if (dm.dmFields & DM_PELSHEIGHT) height = dm.dmPelsHeight;
+        width = dm.dmPelsWidth;
+        height = dm.dmPelsHeight;
         if (dm.dmFields & DM_DISPLAYFREQUENCY) refreshRate = dm.dmDisplayFrequency;
         if (dm.dmFields & DM_DISPLAYORIENTATION) {
             switch (dm.dmDisplayOrientation) {
@@ -295,8 +307,12 @@ static void sendInitialState() {
                 case DMDO_270: orientation = 3; break;
             }
         }
+    } else {
+        // Fallback to GetSystemMetrics
+        width = GetSystemMetrics(SM_CXSCREEN);
+        height = GetSystemMetrics(SM_CYSCREEN);
     }
-    
+
     // Get DPI
     HMONITOR hMonitor = MonitorFromWindow(GetDesktopWindow(), MONITOR_DEFAULTTOPRIMARY);
     if (hMonitor) {
@@ -305,8 +321,8 @@ static void sendInitialState() {
             dpi = (int)dpiX;
         }
     }
-    
-    env->CallVoidMethod(g_displayObj, g_notifyInitialStateMethodId, 
+
+    env->CallVoidMethod(g_displayObj, g_notifyInitialStateMethodId,
         width, height, dpi, orientation, refreshRate);
 
     // Initialize tracking variables
@@ -351,16 +367,15 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
                 return 0;
             }
 
-            int width = GetSystemMetrics(SM_CXSCREEN);
-            int height = GetSystemMetrics(SM_CYSCREEN);
-
+            // Get actual resolution from EnumDisplaySettings (not GetSystemMetrics)
+            int width = 0, height = 0;
             DEVMODE dm = {};
             dm.dmSize = sizeof(dm);
             int refreshRate = 60;
             int orientation = 0;
             if (EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &dm)) {
-                if (dm.dmFields & DM_PELSWIDTH) width = dm.dmPelsWidth;
-                if (dm.dmFields & DM_PELSHEIGHT) height = dm.dmPelsHeight;
+                width = dm.dmPelsWidth;
+                height = dm.dmPelsHeight;
                 if (dm.dmFields & DM_DISPLAYFREQUENCY) refreshRate = dm.dmDisplayFrequency;
                 if (dm.dmFields & DM_DISPLAYORIENTATION) {
                     switch (dm.dmDisplayOrientation) {
@@ -370,33 +385,40 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
                         case DMDO_270: orientation = 3; break;
                     }
                 }
+            } else {
+                // Fallback to GetSystemMetrics
+                width = GetSystemMetrics(SM_CXSCREEN);
+                height = GetSystemMetrics(SM_CYSCREEN);
             }
 
+            // Get DPI - always query current DPI from monitor
             int dpi = 96;
-            HMONITOR hMonitor = MonitorFromWindow(GetDesktopWindow(), MONITOR_DEFAULTTOPRIMARY);
+            HMONITOR hMonitor = MonitorFromWindow(hwnd ? hwnd : GetDesktopWindow(), MONITOR_DEFAULTTOPRIMARY);
+            int monitorIndex = 0;
             if (hMonitor) {
                 UINT dpiX = 96, dpiY = 96;
                 if (SUCCEEDED(GetDpiForMonitor(hMonitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY))) {
                     dpi = (int)dpiX;
                 }
+                // Find monitor index
+                monitorIndex = findMonitorIndex(hMonitor);
             }
 
             // Separate resolution and orientation events
-            bool resolutionChanged = (width != lastWidth || height != lastHeight);
+            bool resolutionChanged = (width != lastWidth || height != lastHeight || dpi != lastDpi);
             bool orientationChanged = (orientation != lastOrientation);
 
             if (resolutionChanged && g_notifyMethodId) {
-                env->CallVoidMethod(g_displayObj, g_notifyMethodId, width, height, dpi, refreshRate);
+                env->CallVoidMethod(g_displayObj, g_notifyMethodId, monitorIndex, width, height, dpi, refreshRate);
                 lastWidth = width;
                 lastHeight = height;
+                lastDpi = dpi;
             }
 
             if (orientationChanged && g_notifyOrientationChangedMethodId) {
-                env->CallVoidMethod(g_displayObj, g_notifyOrientationChangedMethodId, orientation);
+                env->CallVoidMethod(g_displayObj, g_notifyOrientationChangedMethodId, monitorIndex, orientation);
                 lastOrientation = orientation;
             }
-
-            lastDpi = dpi;
 
             if (didAttach) {
                 g_jvm->DetachCurrentThread();
@@ -457,7 +479,14 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
                 int dpi = (int)HIWORD(wParam);
                 int scalePercent = dpi * 100 / 96;
 
-                env->CallVoidMethod(g_displayObj, g_notifyDPIMethodId, dpi, scalePercent);
+                // Get monitor index for this DPI change
+                HMONITOR hMonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+                int monitorIndex = 0;
+                if (hMonitor) {
+                    monitorIndex = findMonitorIndex(hMonitor);
+                }
+
+                env->CallVoidMethod(g_displayObj, g_notifyDPIMethodId, monitorIndex, dpi, scalePercent);
 
                 if (didAttach) {
                     g_jvm->DetachCurrentThread();
@@ -536,13 +565,35 @@ static DWORD WINAPI MonitorThread(LPVOID lpParam) {
         return 1;
     }
 
-    // Use normal window without WS_VISIBLE (like old FastTheme) to receive WM_DPICHANGED
+    // Find which monitor the console window is on
+    HWND consoleHwnd = GetConsoleWindow();
+    HMONITOR targetMonitor = nullptr;
+    if (consoleHwnd) {
+        RECT rect;
+        GetWindowRect(consoleHwnd, &rect);
+        POINT center = { (rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2 };
+        targetMonitor = MonitorFromPoint(center, MONITOR_DEFAULTTONEAREST);
+    }
+
+    // If no console window, use primary monitor
+    if (!targetMonitor) {
+        targetMonitor = MonitorFromPoint(POINT{0, 0}, MONITOR_DEFAULTTOPRIMARY);
+    }
+
+    // Get monitor info to position window on the correct monitor
+    MONITORINFO mi = {};
+    mi.cbSize = sizeof(mi);
+    GetMonitorInfo(targetMonitor, &mi);
+
+    // Use a small visible window to receive WM_DPICHANGED
+    // Window must be visible to receive DPI change notifications
+    // Position it off-screen so it's not visible to user
     HWND hwnd = CreateWindowExA(
         0,
         "FastDisplayMonitor",
         "FastDisplay Monitor",
-        WS_OVERLAPPEDWINDOW,
-        0, 0, 0, 0,
+        WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+        mi.rcMonitor.left - 100, mi.rcMonitor.top - 100, 100, 100,  // Position off-screen
         NULL, NULL, GetModuleHandleA(NULL), NULL
     );
 
@@ -634,10 +685,10 @@ JNIEXPORT jboolean JNICALL Java_fastdisplay_FastDisplay_startMonitoring(JNIEnv* 
     env->GetJavaVM(&g_jvm);
     g_displayObj = env->NewGlobalRef(obj);
     jclass cls = env->GetObjectClass(obj);
-    g_notifyMethodId = env->GetMethodID(cls, "notifyResolutionChanged", "(IIII)V");
-    g_notifyDPIMethodId = env->GetMethodID(cls, "notifyDPIChanged", "(II)V");
+    g_notifyMethodId = env->GetMethodID(cls, "notifyResolutionChanged", "(IIIII)V");
+    g_notifyDPIMethodId = env->GetMethodID(cls, "notifyDPIChanged", "(III)V");
     g_notifyInitialStateMethodId = env->GetMethodID(cls, "notifyInitialState", "(IIIII)V");
-    g_notifyOrientationChangedMethodId = env->GetMethodID(cls, "notifyOrientationChanged", "(I)V");
+    g_notifyOrientationChangedMethodId = env->GetMethodID(cls, "notifyOrientationChanged", "(II)V");
     g_notifyWindowMonitorChangedMethodId = env->GetMethodID(cls, "notifyWindowMonitorChanged", "(III)V");
 
     if (!g_notifyMethodId || !g_notifyDPIMethodId || !g_notifyInitialStateMethodId || !g_notifyOrientationChangedMethodId) {
@@ -848,6 +899,12 @@ JNIEXPORT jint JNICALL Java_fastdisplay_FastDisplay_getOrientation(JNIEnv* env, 
         }
     }
     return 0; // Default LANDSCAPE
+}
+
+JNIEXPORT jint JNICALL Java_fastdisplay_FastDisplay_getCurrentMonitorIndex(JNIEnv* env, jobject obj) {
+    // For now, always return 0 (primary monitor)
+    // The monitoring window is created on the primary monitor if console detection fails
+    return 0;
 }
 
 } // extern "C"

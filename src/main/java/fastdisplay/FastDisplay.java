@@ -17,6 +17,8 @@ import fastcore.FastCore;
  * @version 1.1.0
  */
 public class FastDisplay {
+    /** Default constructor. */
+    public FastDisplay() {}
 
     static {
         FastCore.loadLibrary("fastdisplay");
@@ -24,9 +26,13 @@ public class FastDisplay {
 
     /** Display orientation values returned by the native API. */
     public enum Orientation {
+        /** Standard landscape orientation. */
         LANDSCAPE,
+        /** Portrait orientation (90° rotation). */
         PORTRAIT,
+        /** Landscape flipped (180° rotation). */
         LANDSCAPE_FLIPPED,
+        /** Portrait flipped (270° rotation). */
         PORTRAIT_FLIPPED
     }
 
@@ -34,18 +40,43 @@ public class FastDisplay {
      * Immutable monitor information returned by {@link #enumerateMonitors()}.
      */
     public static final class MonitorInfo {
+        /** Monitor index (0-based). */
         public final int index;
+        /** Display width in pixels. */
         public final int width;
+        /** Display height in pixels. */
         public final int height;
+        /** Dots per inch. */
         public final int dpi;
+        /** Display orientation. */
         public final Orientation orientation;
+        /** Refresh rate in Hz. */
         public final int refreshRate;
+        /** Whether HDR is enabled. */
         public final boolean hdrEnabled;
+        /** Color profile path. */
         public final String colorProfile;
+        /** Manufacturer code. */
         public final String manufacturer;
+        /** Model name. */
         public final String modelName;
+        /** Serial number. */
         public final String serialNumber;
 
+        /**
+         * Constructs a MonitorInfo object.
+         * @param index monitor index
+         * @param width display width
+         * @param height display height
+         * @param dpi dots per inch
+         * @param orientation display orientation
+         * @param refreshRate refresh rate in Hz
+         * @param hdrEnabled HDR support
+         * @param colorProfile color profile path
+         * @param manufacturer manufacturer code
+         * @param modelName model name
+         * @param serialNumber serial number
+         */
         public MonitorInfo(int index, int width, int height, int dpi,
                            Orientation orientation, int refreshRate, boolean hdrEnabled, String colorProfile,
                            String manufacturer, String modelName, String serialNumber) {
@@ -64,12 +95,23 @@ public class FastDisplay {
 
         @Override
         public String toString() {
-            return "Monitor " + index + ": " + width + "x" + height +
-                   " @ " + refreshRate + "Hz, " + dpi + " DPI, " + orientation +
-                   (hdrEnabled ? ", HDR" : "") +
-                   (colorProfile != null && !colorProfile.isEmpty() ? ", ColorProfile=" + colorProfile : "") +
-                   (manufacturer != null && !manufacturer.isEmpty() ? ", Manufacturer=" + manufacturer : "") +
-                   (modelName != null && !modelName.isEmpty() ? ", Model=" + modelName : "");
+            StringBuilder sb = new StringBuilder();
+            int scalePercent = (dpi * 100) / 96;
+            sb.append("MONITOR ").append(index).append("\n");
+            sb.append("────────────────────────────────────────────────────────\n");
+            sb.append(String.format("Resolution : %d × %d @ %d Hz\n", width, height, refreshRate));
+            sb.append(String.format("DPI        : %d (%d%%)\n", dpi, scalePercent));
+            sb.append("Orientation: ").append(orientation).append("\n");
+            if (colorProfile != null && !colorProfile.isEmpty()) {
+                sb.append("ColorProf. : ").append(colorProfile).append("\n");
+            }
+            if (manufacturer != null && !manufacturer.isEmpty()) {
+                sb.append("Vendor     : ").append(manufacturer).append("\n");
+            }
+            if (modelName != null && !modelName.isEmpty()) {
+                sb.append("Model      : ").append(modelName).append("\n");
+            }
+            return sb.toString();
         }
     }
 
@@ -77,17 +119,30 @@ public class FastDisplay {
      * Listener interface for receiving display change events.
      */
     public interface DisplayListener {
+        /** Called with initial display state when monitoring starts. */
         void onInitialState(int width, int height, int dpi, int refreshRate, Orientation orientation);
-        void onResolutionChanged(int width, int height, int dpi, int refreshRate);
-        void onDPIChanged(int dpi, int scalePercent);
-        void onOrientationChanged(Orientation orientation);
+        /** Called when display resolution changes. */
+        void onResolutionChanged(int monitorIndex, int width, int height, int dpi, int refreshRate);
+        /** Called when DPI scaling changes. */
+        void onDPIChanged(int monitorIndex, int dpi, int scalePercent);
+        /** Called when display orientation changes. */
+        void onOrientationChanged(int monitorIndex, Orientation orientation);
+        /** Called when tracked window moves to a different monitor. */
         void onWindowMonitorChanged(int oldMonitorIndex, int newMonitorIndex, int newDPI);
     }
 
     private DisplayListener listener;
     private long windowHandle = 0;
 
-    /** Assign a listener for display events. */
+    // Tracking variables to prevent duplicate events
+    private int lastReportedWidth = 0;
+    private int lastReportedHeight = 0;
+    private int lastReportedDpi = 0;
+    private int lastReportedRefreshRate = 0;
+    private Orientation lastReportedOrientation = null;
+
+    /** Assign a listener for display events.
+     * @param listener the listener to set */
     public void setListener(DisplayListener listener) {
         this.listener = listener;
     }
@@ -95,6 +150,7 @@ public class FastDisplay {
     /**
      * Set the HWND of the window to track for monitor transitions.
      * Must be called before {@link #startMonitoring()}.
+     * @param hwnd the window handle
      */
     public void setWindowHandle(long hwnd) {
         this.windowHandle = hwnd;
@@ -107,25 +163,46 @@ public class FastDisplay {
 
     private void notifyInitialState(int w, int h, int dpi, int orientationOrdinal, int refresh) {
         if (listener != null) {
-            listener.onInitialState(w, h, dpi, refresh, Orientation.values()[orientationOrdinal]);
+            // Update tracking variables with initial state
+            lastReportedWidth = w;
+            lastReportedHeight = h;
+            lastReportedDpi = dpi;
+            lastReportedRefreshRate = refresh;
+            lastReportedOrientation = Orientation.values()[orientationOrdinal];
+            listener.onInitialState(w, h, dpi, refresh, lastReportedOrientation);
         }
     }
 
-    private void notifyResolutionChanged(int w, int h, int dpi, int refresh) {
+    private void notifyResolutionChanged(int monitorIndex, int w, int h, int dpi, int refresh) {
         if (listener != null) {
-            listener.onResolutionChanged(w, h, dpi, refresh);
+            // Only fire if resolution (width/height/refresh) actually changed, not DPI
+            if (w != lastReportedWidth || h != lastReportedHeight || refresh != lastReportedRefreshRate) {
+                lastReportedWidth = w;
+                lastReportedHeight = h;
+                lastReportedRefreshRate = refresh;
+                listener.onResolutionChanged(monitorIndex, w, h, dpi, refresh);
+            }
         }
     }
 
-    private void notifyOrientationChanged(int orientationOrdinal) {
+    private void notifyOrientationChanged(int monitorIndex, int orientationOrdinal) {
         if (listener != null) {
-            listener.onOrientationChanged(Orientation.values()[orientationOrdinal]);
+            Orientation newOrientation = Orientation.values()[orientationOrdinal];
+            // Only fire if orientation actually changed
+            if (newOrientation != lastReportedOrientation) {
+                lastReportedOrientation = newOrientation;
+                listener.onOrientationChanged(monitorIndex, newOrientation);
+            }
         }
     }
 
-    private void notifyDPIChanged(int dpi, int scalePercent) {
+    private void notifyDPIChanged(int monitorIndex, int dpi, int scalePercent) {
         if (listener != null) {
-            listener.onDPIChanged(dpi, scalePercent);
+            // Only fire if DPI actually changed
+            if (dpi != lastReportedDpi) {
+                lastReportedDpi = dpi;
+                listener.onDPIChanged(monitorIndex, dpi, scalePercent);
+            }
         }
     }
 
@@ -139,7 +216,8 @@ public class FastDisplay {
     // Native API
     // -------------------------
 
-    /** Start monitoring display changes. */
+    /** Start monitoring display changes.
+     * @return true if monitoring started successfully */
     public native boolean startMonitoring();
 
     /** Stop monitoring display changes. */
@@ -148,18 +226,28 @@ public class FastDisplay {
     /** Pass window handle to native layer. */
     private native void setWindowHandleNative(long hwnd);
 
-    /** Enumerate all monitors. */
+    /** Enumerate all monitors.
+     * @return array of monitor information */
     public native MonitorInfo[] enumerateMonitors();
 
-    /** Get DPI for a specific monitor. */
+    /** Get DPI for a specific monitor.
+     * @param monitorIndex the monitor index
+     * @return DPI value, or -1 if invalid */
     public native int getMonitorDPI(int monitorIndex);
 
-    /** Get primary display resolution. */
+    /** Get primary display resolution.
+     * @return array with [width, height] */
     public native int[] getResolution();
 
-    /** Get primary display scale factor (100, 125, 150...). */
+    /** Get primary display scale factor (100, 125, 150...).
+     * @return scale percentage */
     public native int getScale();
 
-    /** Get primary display orientation. */
+    /** Get primary display orientation.
+     * @return current orientation */
     public native Orientation getOrientation();
+
+    /** Get the monitor index where the monitoring window is located.
+     * @return monitor index, or -1 if not monitoring */
+    public native int getCurrentMonitorIndex();
 }

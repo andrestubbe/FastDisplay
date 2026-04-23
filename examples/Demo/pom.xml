@@ -35,7 +35,7 @@
         </dependency>
         <!-- FastCore required for native library loading -->
         <dependency>
-            <groupId>io.github.andrestubbe</groupId>
+            <groupId>com.github.andrestubbe</groupId>
             <artifactId>fastcore</artifactId>
             <version>v1.0.0</version>
         </dependency>

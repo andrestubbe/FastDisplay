@@ -30,6 +30,7 @@ public class Demo {
         clearConsole();
 
         System.out.println("FastDisplay v1.1.0");
+        System.out.println("────────────────────────────────────────────────────────");
         System.out.println();
 
         FastDisplay display = new FastDisplay();
@@ -42,33 +43,40 @@ public class Demo {
             }
         }
 
+        System.out.println("EVENT LOG");
+        System.out.println("────────────────────────────────────────────────────────");
+
+        // Show current monitor (where the monitoring window is)
+        int currentMonitor = display.getCurrentMonitorIndex();
+        System.out.printf("%-21s monitor=%d%n", "[CURRENT]", currentMonitor);
+
         display.setListener(new FastDisplay.DisplayListener() {
             @Override
             public void onInitialState(int width, int height, int dpi, int refreshRate,
                                        FastDisplay.Orientation orientation) {
-                printDisplayInfo(0, width, height, dpi, refreshRate, orientation, "[CURRENT]", "FULL");
+                // Initial state already shown by enumerateMonitors() above
             }
 
             @Override
-            public void onResolutionChanged(int width, int height, int dpi, int refreshRate) {
-                printDisplayInfo(0, width, height, dpi, refreshRate, null, "[EVENT]", "[RESOLUTION]");
+            public void onResolutionChanged(int monitorIndex, int width, int height, int dpi, int refreshRate) {
+                printDisplayInfo(monitorIndex, width, height, dpi, refreshRate, null, "[EVENT]", "[RESOLUTION]");
             }
 
             @Override
-            public void onDPIChanged(int dpi, int scalePercent) {
-                printDisplayInfo(0, 0, 0, dpi, 0, null, "[EVENT]", "[DPI]");
+            public void onDPIChanged(int monitorIndex, int dpi, int scalePercent) {
+                printDisplayInfo(monitorIndex, 0, 0, dpi, 0, null, "[EVENT]", "[DPI]");
             }
 
             @Override
-            public void onOrientationChanged(FastDisplay.Orientation orientation) {
-                printDisplayInfo(0, 0, 0, 0, 0, orientation, "[EVENT]", "[ORIENTATION]");
+            public void onOrientationChanged(int monitorIndex, FastDisplay.Orientation orientation) {
+                printDisplayInfo(monitorIndex, 0, 0, 0, 0, orientation, "[EVENT]", "[ORIENTATION]");
             }
 
             @Override
             public void onWindowMonitorChanged(int oldMonitorIndex, int newMonitorIndex, int newDpi) {
                 int scalePercent = (newDpi * 100) / 96;
-                System.out.printf("%-21s monitor %d -> %d, dpi=%-3d, scale=%-3d%%%n",
-                    "[EVENT] [MONITOR]", oldMonitorIndex, newMonitorIndex, newDpi, scalePercent);
+                System.out.printf("%-21s monitor %d → %d, dpi=%-3d (%-3d%%)%n",
+                    "[EVENT] [CURRENT]", oldMonitorIndex, newMonitorIndex, newDpi, scalePercent);
             }
         });
 
@@ -94,13 +102,13 @@ public class Demo {
 
         // Format based on event type
         if ("[DPI]".equals(eventType)) {
-            System.out.printf("%-21s monitor=%s, dpi=%-3d, scale=%-3d%%%n",
+            System.out.printf("%-21s monitor=%s → dpi=%-3d (%-3d%%)%n",
                 prefixFormatted, monitorStr, dpi, scalePercent);
         } else if ("[ORIENTATION]".equals(eventType)) {
-            System.out.printf("%-21s monitor=%s, orientation=%s%n",
+            System.out.printf("%-21s monitor=%s → %s%n",
                 prefixFormatted, monitorStr, orientationName);
         } else if ("[RESOLUTION]".equals(eventType)) {
-            System.out.printf("%-21s monitor=%s, res=%dx%d, hz=%-3d%n",
+            System.out.printf("%-21s monitor=%s → %d×%d @ %d Hz%n",
                 prefixFormatted, monitorStr, width, height, refreshRate);
         } else {
             // FULL or default (PRESENT/CURRENT)
