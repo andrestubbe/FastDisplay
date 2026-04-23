@@ -268,6 +268,7 @@ static int lastWidth = 0;
 static int lastHeight = 0;
 static int lastDpi = 0;
 static int lastOrientation = 0;
+static char lastColorProfiles[16][MAX_PATH] = {0};  // Track last color profile per monitor, initialized to empty
 
 static int getMonitorIndexFromWindow(HWND hwnd) {
     if (hwnd == nullptr) return -1;
@@ -304,17 +305,18 @@ static int findMonitorIndex(HMONITOR hMonitor) {
 }
 
 static void sendInitialState() {
-    if (g_jvm == nullptr || g_displayObj == nullptr) return;
+    if (!g_jvm || !g_displayObj) return;
 
     JNIEnv* env;
     jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
     bool didAttach = false;
 
     if (attachResult == JNI_EDETACHED) {
-        if (g_jvm->AttachCurrentThread((void**)&env, nullptr) != 0) {
+        if (g_jvm->AttachCurrentThread((void**)&env, nullptr) == 0) {
+            didAttach = true;
+        } else {
             return;
         }
-        didAttach = true;
     } else if (attachResult != JNI_OK) {
         return;
     }
@@ -362,6 +364,14 @@ static void sendInitialState() {
     lastHeight = height;
     lastDpi = dpi;
     lastOrientation = orientation;
+
+    // Initialize color profile tracking
+    {
+        std::lock_guard<std::mutex> lock(monitorMutex);
+        for (int i = 0; i < monitorCount; i++) {
+            strcpy_s(lastColorProfiles[i], monitors[i].colorProfile);
+        }
+    }
 
     if (didAttach) {
         g_jvm->DetachCurrentThread();
@@ -776,9 +786,14 @@ static DWORD WINAPI RegistryMonitorThread(LPVOID lpParam) {
                     // Notify Java for each monitor with color profile change
                     std::lock_guard<std::mutex> lock(monitorMutex);
                     for (int i = 0; i < monitorCount; i++) {
-                        jstring profile = env->NewStringUTF(monitors[i].colorProfile);
-                        env->CallVoidMethod(g_displayObj, g_notifyColorProfileChangedMethodId, i, profile);
-                        env->DeleteLocalRef(profile);
+                        // Only notify if color profile actually changed
+                        if (strcmp(monitors[i].colorProfile, lastColorProfiles[i]) != 0) {
+                            jstring profile = env->NewStringUTF(monitors[i].colorProfile);
+                            env->CallVoidMethod(g_displayObj, g_notifyColorProfileChangedMethodId, i, profile);
+                            env->DeleteLocalRef(profile);
+                            // Update last known profile
+                            strcpy_s(lastColorProfiles[i], monitors[i].colorProfile);
+                        }
                     }
 
                     if (didAttach) {
