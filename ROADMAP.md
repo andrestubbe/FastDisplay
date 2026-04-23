@@ -79,22 +79,6 @@ display.startMonitoring();
 
 ---
 
-## Was NICHT zu FastDisplay gehört
-
-| Feature | Gehört zu | Warum |
-|---------|-----------|-------|
-| Titlebar Coloring | FastTheme | UI-Styling |
-| Dark/Light Mode | FastTheme | Theme-Einstellung |
-| Accent Color | FastTheme | System-Theme |
-| Window Transparency | FastTheme | UI-Effekt |
-| Mica/Acrylic | FastTheme | Material-Design |
-| Window Buttons | FastTheme | Chrome-Styling |
-
-**FastDisplay bleibt Hardware/Display-Layer.**
-**FastTheme bleibt UI/Theme-Layer.**
-
----
-
 ## Architektur
 
 ```
@@ -124,29 +108,7 @@ display.startMonitoring();
 │                                         │
 └─────────────────────────────────────────┘
 
-┌─────────────────────────────────────────┐
-│           FASTTHEME v2.0                 │
-│      UI Theme & Window Chrome            │
-├─────────────────────────────────────────┤
-│                                         │
-│  Theme Layer:                           │
-│   • Dark/Light Mode                    │
-│   • Accent Color                       │
-│   • System Colors                      │
-│                                         │
-│  Chrome Layer:                          │
-│   • Titlebar Coloring                  │
-│   • Titlebar Text                      │
-│   • Border Styling                     │
-│   • Rounded Corners                    │
-│                                         │
-│  Material Layer:                        │
-│   • Mica / Acrylic                     │
-│   • Transparency                       │
-│   • Blur Effects                       │
-│                                         │
-└─────────────────────────────────────────┘
-```
+
 
 ---
 

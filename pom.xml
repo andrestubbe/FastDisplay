@@ -7,7 +7,7 @@
 
     <groupId>io.github.andrestubbe</groupId>
     <artifactId>fastdisplay</artifactId>
-    <version>1.0.0</version>
+    <version>v1.0.0</version>
     <packaging>jar</packaging>
 
     <name>FastDisplay</name>
