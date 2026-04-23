@@ -43,6 +43,37 @@ static std::mutex monitorMutex;
 static int monitorCount = 0;
 static MonitorInfo monitors[16];  // Support up to 16 monitors
 
+// DXGI for refresh rate change detection
+static IDXGIFactory5* g_dxgiFactory = nullptr;
+static DWORD g_dxgiCookie = 0;
+
+// Initialize DXGI for refresh rate monitoring
+static bool initDXGI(HWND hwnd) {
+    if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory5), (void**)&g_dxgiFactory))) {
+        return false;
+    }
+
+    // Register window for DXGI mode change events
+    if (FAILED(g_dxgiFactory->RegisterOcclusionStatusWindow(hwnd, WM_USER + 100, &g_dxgiCookie))) {
+        g_dxgiFactory->Release();
+        g_dxgiFactory = nullptr;
+        return false;
+    }
+
+    return true;
+}
+
+// Cleanup DXGI resources
+static void cleanupDXGI() {
+    if (g_dxgiFactory && g_dxgiCookie) {
+        g_dxgiFactory->UnregisterOcclusionStatus(g_dxgiCookie);
+    }
+    if (g_dxgiFactory) {
+        g_dxgiFactory->Release();
+        g_dxgiFactory = nullptr;
+    }
+}
+
 // Helper function to detect HDR support for a monitor
 static bool isMonitorHDR(HMONITOR hMonitor) {
     IDXGIOutput* pOutput = nullptr;
@@ -503,6 +534,50 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
         case WM_DESTROY:
             PostQuitMessage(0);
             return 0;
+
+        case WM_USER + 100: {
+            // DXGI event - refresh rate or display mode may have changed
+            // Check all monitors for refresh rate changes
+            if (g_jvm && g_displayObj) {
+                JNIEnv* env;
+                jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
+                bool didAttach = false;
+
+                if (attachResult == JNI_EDETACHED) {
+                    if (g_jvm->AttachCurrentThread((void**)&env, nullptr) == 0) {
+                        didAttach = true;
+                    }
+                } else if (attachResult != JNI_OK) {
+                    return 0;
+                }
+
+                // Check each monitor for refresh rate changes
+                std::lock_guard<std::mutex> lock(monitorMutex);
+                for (int i = 0; i < monitorCount; i++) {
+                    DEVMODEW dm = {};
+                    dm.dmSize = sizeof(dm);
+                    if (EnumDisplaySettingsExW(NULL, ENUM_CURRENT_SETTINGS, &dm, 0)) {
+                        if (dm.dmFields & DM_DISPLAYFREQUENCY) {
+                            int newRefreshRate = dm.dmDisplayFrequency;
+                            if (newRefreshRate != monitors[i].refreshRate) {
+                                // Refresh rate changed
+                                monitors[i].refreshRate = newRefreshRate;
+                                // Notify Java
+                                if (g_notifyMethodId) {
+                                    env->CallVoidMethod(g_displayObj, g_notifyMethodId, i,
+                                        monitors[i].width, monitors[i].height, monitors[i].dpi, newRefreshRate);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (didAttach) {
+                    g_jvm->DetachCurrentThread();
+                }
+            }
+            return 0;
+        }
     }
     return DefWindowProcA(hwnd, uMsg, wParam, lParam);
 }
@@ -554,7 +629,8 @@ static void CALLBACK WinEventProc(
 }
 
 static DWORD WINAPI MonitorThread(LPVOID lpParam) {
-    SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    // Set DPI awareness BEFORE creating the window
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
     WNDCLASSA wc = {};
     wc.lpfnWndProc = MonitorWindowProc;
@@ -585,15 +661,14 @@ static DWORD WINAPI MonitorThread(LPVOID lpParam) {
     mi.cbSize = sizeof(mi);
     GetMonitorInfo(targetMonitor, &mi);
 
-    // Use a small visible window to receive WM_DPICHANGED
-    // Window must be visible to receive DPI change notifications
-    // Position it off-screen so it's not visible to user
+    // Create a WS_POPUP window (not WS_OVERLAPPEDWINDOW) for DPI events
+    // Position off-screen but keep it as a real top-level window
     HWND hwnd = CreateWindowExA(
         0,
         "FastDisplayMonitor",
         "FastDisplay Monitor",
-        WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-        mi.rcMonitor.left - 100, mi.rcMonitor.top - 100, 100, 100,  // Position off-screen
+        WS_POPUP,  // WS_POPUP receives DPI messages correctly
+        mi.rcMonitor.left - 100, mi.rcMonitor.top - 100, 1, 1,  // Off-screen, minimal size
         NULL, NULL, GetModuleHandleA(NULL), NULL
     );
 
@@ -603,11 +678,17 @@ static DWORD WINAPI MonitorThread(LPVOID lpParam) {
 
     g_hwnd = hwnd;
 
+    // Initialize DXGI for refresh rate monitoring
+    initDXGI(hwnd);
+
     MSG msg = { 0 };
     while (GetMessage(&msg, nullptr, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
+
+    // Cleanup DXGI
+    cleanupDXGI();
 
     return 0;
 }
@@ -676,6 +757,12 @@ static DWORD WINAPI RegistryMonitorThread(LPVOID lpParam) {
 
 extern "C" {
 
+// Set process DPI awareness when DLL loads
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    return JNI_VERSION_1_6;
+}
+
 JNIEXPORT jboolean JNICALL Java_fastdisplay_FastDisplay_startMonitoring(JNIEnv* env, jobject obj) {
     HWND currentHwnd = g_hwnd.load();
     if (currentHwnd != nullptr) {
@@ -707,11 +794,13 @@ JNIEXPORT jboolean JNICALL Java_fastdisplay_FastDisplay_startMonitoring(JNIEnv* 
             // Set up WinEventHook for window move/location change detection
             g_hook = SetWinEventHook(
                 EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_LOCATIONCHANGE,
-                nullptr, WinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT
-            );
+                nullptr, WinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
 
-            // Registry monitoring disabled due to continuous false positives
-            // Windows registry keys are constantly updated even without profile changes
+            // Start registry monitoring for color profile changes
+            g_registryEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+            if (g_registryEvent) {
+                g_registryThread = CreateThread(nullptr, 0, RegistryMonitorThread, nullptr, 0, nullptr);
+            }
 
             sendInitialState();
         }
@@ -902,8 +991,24 @@ JNIEXPORT jint JNICALL Java_fastdisplay_FastDisplay_getOrientation(JNIEnv* env, 
 }
 
 JNIEXPORT jint JNICALL Java_fastdisplay_FastDisplay_getCurrentMonitorIndex(JNIEnv* env, jobject obj) {
-    // For now, always return 0 (primary monitor)
-    // The monitoring window is created on the primary monitor if console detection fails
+    // Ensure monitors are enumerated
+    if (monitorCount == 0) {
+        enumerateMonitors();
+    }
+
+    // Use MonitorFromWindow to detect the console window's monitor
+    HWND consoleHwnd = GetConsoleWindow();
+    if (consoleHwnd) {
+        HMONITOR hMonitor = MonitorFromWindow(consoleHwnd, MONITOR_DEFAULTTONEAREST);
+        if (hMonitor) {
+            int monitorIndex = findMonitorIndex(hMonitor);
+            if (monitorIndex >= 0) {
+                return monitorIndex;
+            }
+        }
+    }
+
+    // Fallback to primary monitor (monitor 0)
     return 0;
 }
 
