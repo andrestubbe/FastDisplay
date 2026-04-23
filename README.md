@@ -1,4 +1,4 @@
-# FastDisplay — Native Windows Display Monitoring API for Java [ALPHA]
+# FastDisplay — Native Windows Display Monitoring API for Java
 
 **Lightweight native Windows display monitoring for Java applications.**
 
@@ -29,7 +29,7 @@ public class DisplayMonitor {
             }
             
             @Override
-            public void onResolutionChanged(int width, int height, int dpi, int refreshRate) {
+            public void onResolutionChanged(int monitorIndex, int width, int height, int dpi, int refreshRate) {
                 int scalePercent = (dpi * 100) / 96;
                 System.out.println("EVENT: Resolution changed to " + width + "x" + height + 
                                  " | Scale: " + scalePercent + "% (DPI: " + dpi + ")" +
@@ -37,12 +37,12 @@ public class DisplayMonitor {
             }
             
             @Override
-            public void onDPIChanged(int dpi, int scalePercent) {
+            public void onDPIChanged(int monitorIndex, int dpi, int scalePercent) {
                 System.out.println("EVENT: DPI changed to " + dpi + " (" + scalePercent + "%)");
             }
             
             @Override
-            public void onOrientationChanged(FastDisplay.Orientation orientation) {
+            public void onOrientationChanged(int monitorIndex, FastDisplay.Orientation orientation) {
                 System.out.println("EVENT: Orientation changed to " + orientation);
             }
         });
@@ -96,7 +96,7 @@ FastDisplay is a **minimal, native, fast** library that provides:
     <version>v1.0.0</version>
 </dependency>
 <dependency>
-    <groupId>io.github.andrestubbe</groupId>
+    <groupId>com.github.andrestubbe</groupId>
     <artifactId>fastcore</artifactId>
     <version>v1.0.0</version>
 </dependency>
@@ -113,7 +113,7 @@ repositories {
 
 dependencies {
     implementation 'io.github.andrestubbe:fastdisplay:v1.0.0'
-    implementation 'io.github.andrestubbe:fastcore:v1.0.0'
+    implementation 'com.github.andrestubbe:fastcore:v1.0.0'
 }
 ```
 
@@ -130,7 +130,7 @@ dependencies {
 - **Zero dependencies** — Java 17+ and Windows only
 - **Lightweight** — Minimal CPU/memory overhead
 - **MIT licensed** — Free for commercial use
-- **Thread-safe** — Background thread calls listener on main thread
+- **Thread-safe** — Background thread with proper JNI thread management
 
 ---
 
@@ -155,22 +155,20 @@ public class Main {
             }
             
             @Override
-            public void onResolutionChanged(int width, int height, int dpi, int refreshRate) {
+            public void onResolutionChanged(int monitorIndex, int width, int height, int dpi, int refreshRate) {
                 int scalePercent = (dpi * 100) / 96;
-                String orientation = (width > height) ? "LANDSCAPE" : "PORTRAIT";
                 System.out.println("EVENT: Resolution changed to " + width + "x" + height + 
                                  " | Scale: " + scalePercent + "% (DPI: " + dpi + ")" +
-                                 " | " + refreshRate + "Hz" +
-                                 " | " + orientation);
+                                 " | " + refreshRate + "Hz");
             }
             
             @Override
-            public void onDPIChanged(int dpi, int scalePercent) {
+            public void onDPIChanged(int monitorIndex, int dpi, int scalePercent) {
                 System.out.println("EVENT: DPI changed to " + dpi + " (" + scalePercent + "%)");
             }
             
             @Override
-            public void onOrientationChanged(FastDisplay.Orientation orientation) {
+            public void onOrientationChanged(int monitorIndex, FastDisplay.Orientation orientation) {
                 System.out.println("EVENT: Orientation changed to " + orientation);
             }
         });
@@ -200,10 +198,10 @@ public class Main {
 
 | Method | Description |
 |--------|-------------|
-| `void onInitialState(int w, int h, int dpi, int refresh, Orientation o)` | Called once on startup |
-| `void onResolutionChanged(int w, int h, int dpi, int refresh)` | Resolution or DPI changed |
-| `void onDPIChanged(int dpi, int scalePercent)` | DPI scaling changed |
-| `void onOrientationChanged(Orientation o)` | Display orientation changed |
+| `void onInitialState(int w, int h, int dpi, int refresh, Orientation o)` | Called once on startup with initial display state |
+| `void onResolutionChanged(int monitorIndex, int w, int h, int dpi, int refresh)` | Resolution or refresh rate changed |
+| `void onDPIChanged(int monitorIndex, int dpi, int scalePercent)` | DPI scaling changed |
+| `void onOrientationChanged(int monitorIndex, Orientation o)` | Display orientation changed |
 
 ### Orientation Enum
 
@@ -216,9 +214,32 @@ public class Main {
 
 **Native APIs Used:**
 - `WM_DISPLAYCHANGE` — Resolution changes
-- `WM_DPICHANGED` — DPI scaling changes
+- `WM_DPICHANGED` — DPI scaling changes (when supported)
 - `GetDpiForMonitor` — Per-monitor DPI detection
 - `EnumDisplaySettings` — Resolution, refresh rate, orientation
+- `EnumDisplayMonitors` — Monitor enumeration and detection
+- DPI polling timer — Backup mechanism for DPI detection
+
+### Architecture & Polling Strategy
+
+FastDisplay uses a **hybrid event-driven architecture** to minimize polling overhead:
+
+**Monitor Detection:**
+- Monitors are detected using `EnumDisplayMonitors` which provides HMONITOR handles
+- Each monitor's properties (resolution, DPI, refresh rate, orientation) are queried once during enumeration
+- Monitor handles are cached for efficient lookups during event processing
+
+**Event-Driven Primary Path:**
+- Windows messages (`WM_DISPLAYCHANGE`, `WM_DPICHANGED`) trigger immediate callbacks
+- No polling for resolution, refresh rate, or orientation changes
+- Zero CPU overhead when display state is stable
+
+**DPI Polling Fallback:**
+- A lightweight 500ms polling timer runs only as a backup for DPI changes
+- This compensates for situations where `WM_DPICHANGED` doesn't fire (some Windows configurations)
+- Future versions aim to eliminate this polling entirely through improved event handling
+
+The goal is **zero polling** where possible, with minimal fallback only for edge cases.
 
 ---
 
@@ -244,9 +265,13 @@ public class Main {
 
 ## Roadmap
 
+### v1.1 (Future)
 - [ ] **Multi-Monitor Support** — Per-display settings detection
 - [ ] **HDR Detection** — Detect HDR-capable displays
 - [ ] **Color Profile** — Read display color profiles
+- [ ] **Window Monitor Tracking** — Track which monitor a window is on
+
+### v2.0 (Future)
 - [ ] **Linux Support** — X11/Wayland display monitoring
 - [ ] **macOS Support** — macOS display configuration monitoring
 
@@ -266,3 +291,4 @@ MIT License — See [LICENSE](LICENSE) file for details.
 ---
 
 **Made with ⚡ by Andre Stubbe**
+

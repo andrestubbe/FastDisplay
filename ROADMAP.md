@@ -1,85 +1,74 @@
-# FastDisplay - Roadmap & TODO
+# FastDisplay - Roadmap
 
-## Was DEFINITIV zu FastDisplay gehört
+## Core Features (v1.0 - Released)
 
-### 1) Display Metrics (Hardware-Layer)
-- **DPI / Scaling** - Per-Monitor DPI awareness (Windows 8.1+)
-- **Resolution** - Screen width/height in pixels
-- **Refresh Rate (Hz)** - Display frequency
-- **Orientation** - Landscape/Portrait/Flipped
+### 1) Display Metrics (Hardware Layer)
+- [x] **DPI / Scaling** - Per-Monitor DPI awareness (Windows 8.1+)
+- [x] **Resolution** - Screen width/height in pixels
+- [x] **Refresh Rate (Hz)** - Display frequency
+- [x] **Orientation** - Landscape/Portrait/Flipped
 
-**Das ist der Kern - Hardware-nahe Display-Informationen.**
+**This is the core - hardware-level display information.**
 
-### 2) Multi-Monitor Support
-- **Monitor Detection** - Welche Monitore sind angeschlossen?
-- **Window-Monitor Mapping** - Auf welchem Monitor ist das Fenster?
-- **Per-Monitor Metrics** - Jedes Display hat eigene DPI/Hz/Resolution
-- **Monitor Hot-Plug Events** - Monitor angeschlossen/getrennt
+### 2) Display Events (Real-Time)
+- [x] **WM_DISPLAYCHANGE** - Resolution/Refresh/Orientation changes
+- [x] **WM_DPICHANGED** - DPI scaling changes (when supported)
+- [x] **DPI Polling** - Backup mechanism for DPI detection
 
-**Das ist essentiell für moderne Multi-Monitor-Setups.**
+**Apps must be able to react to display changes.**
 
-### 3) Display Events (Real-Time)
-- **WM_DISPLAYCHANGE** - Resolution/Refresh/Orientation Änderungen
-- **WM_DPICHANGED** - DPI Scaling Änderungen (per Monitor)
-- **Monitor Connect/Disconnect** - Hardware Events
-
-**Apps müssen auf Display-Änderungen reagieren können.**
-
-### 4) DisplayListener API
+### 3) DisplayListener API
 ```java
 FastDisplay display = new FastDisplay();
 display.setListener(new DisplayListener() {
     @Override
-    public void onDisplayChanged(int width, int height, int dpi, int hz) {}
+    public void onInitialState(int width, int height, int dpi, int refreshRate, Orientation orientation) {}
     
     @Override
-    public void onDPIChanged(int dpi, int scalePercent) {}
+    public void onResolutionChanged(int monitorIndex, int width, int height, int dpi, int refreshRate) {}
     
     @Override
-    public void onMonitorChanged(Monitor monitor) {}
+    public void onDPIChanged(int monitorIndex, int dpi, int scalePercent) {}
+    
+    @Override
+    public void onOrientationChanged(int monitorIndex, Orientation orientation) {}
 });
 display.startMonitoring();
 ```
 
-**High-Level API für Entwickler.**
+**High-level API for developers.**
+
+---
+
+## Future Enhancements (v1.1+)
+
+### 4) Multi-Monitor Support
+- [ ] **Monitor Detection** - Which monitors are connected?
+- [ ] **Window-Monitor Mapping** - Which monitor is the window on?
+- [ ] **Per-Monitor Metrics** - Each display has its own DPI/Hz/Resolution
+- [ ] **Monitor Hot-Plug Events** - Monitor connected/disconnected
+
+**Essential for modern multi-monitor setups.**
 
 ### 5) Monitor Information
-- **Monitor Name** - "DELL U2720Q"
-- **Monitor Handle** - HMONITOR für native APIs
-- **Work Area** - Desktop-Bereich (ohne Taskbar)
-- **Primary/Secondary** - Hauptmonitor erkennen
+- [ ] **Monitor Name** - "DELL U2720Q"
+- [ ] **Monitor Handle** - HMONITOR for native APIs
+- [ ] **Work Area** - Desktop area (excluding taskbar)
+- [ ] **Primary/Secondary** - Detect primary monitor
 
-**Nützlich für Fenster-Positionierung.**
-
----
-
-## Optionale Erweiterungen
+**Useful for window positioning.**
 
 ### 6) Advanced Display Features
-- **HDR Detection** - HDR10, Dolby Vision
-- **Color Profile (ICC)** - Farbraum-Informationen
-- **Bit Depth** - 8-bit, 10-bit, 12-bit
-- **G-Sync / FreeSync** - Adaptive Sync Status
+- [ ] **HDR Detection** - HDR10, Dolby Vision
+- [ ] **Color Profile (ICC)** - Color space information
+- [ ] **Bit Depth** - 8-bit, 10-bit, 12-bit
+- [ ] **G-Sync / FreeSync** - Adaptive Sync status
 
-**Für professionelle Bildbearbeitung/Gaming.**
-
-### 7) Virtual Display Support
-- **Simulierte Monitore** - Für Remote/Headless
-- **Display Spoofing** - Testing ohne Hardware
-- **Dummy Plug Detection** - Headless-GPU-Steuerung
-
-**Entwickler- und Server-Szenarien.**
-
-### 8) Display Configuration
-- **Resolution ändern** - Programmatisch umstellen
-- **DPI Scaling setzen** - System-Scaling beeinflussen
-- **Primary Monitor wechseln** - Hauptdisplay setzen
-
-**Advanced-Use-Case, nicht primary focus.**
+**For professional image editing/gaming.**
 
 ---
 
-## Architektur
+## Architecture
 
 ```
 ┌─────────────────────────────────────────┐
@@ -107,58 +96,53 @@ display.startMonitoring();
 │   • Display Connected/Disconnected     │
 │                                         │
 └─────────────────────────────────────────┘
-
-
-
----
-
-## Aktuelle Aufgaben (v1.0 Initial)
-
-- [x] Monitoring-Code aus FastTheme übernommen
-- [x] DPI Change Detection (WM_DPICHANGED)
-- [ ] Multi-Monitor Support
-- [ ] Monitor-Handle API
-- [ ] Window-to-Monitor Mapping
-- [ ] Monitor Connect/Disconnect Events
-- [ ] Per-Monitor DPI Awareness
-- [ ] DisplayListener Interface
-- [ ] README.md erstellen
-- [ ] Examples erstellen (ConsoleDemo)
-- [ ] Push zu GitHub
-- [ ] JitPack Release v1.0
+```
 
 ---
 
-## Zusammenarbeit mit FastTheme
+## Completed Tasks (v1.0)
+
+- [x] Monitoring code from FastTheme
+- [x] DPI change detection (WM_DPICHANGED + polling)
+- [x] DisplayListener interface
+- [x] README.md
+- [x] Examples (ConsoleDemo)
+- [x] Javadoc documentation
+- [x] Doxygen comments
+- [x] JitPack configuration
+- [x] GitHub release
+
+---
+
+## Integration with FastTheme
 
 ```java
-// FastDisplay liefert Display-Info
+// FastDisplay provides display info
 FastDisplay display = new FastDisplay();
 int dpi = display.getDPIForWindow(frame);
 
-// FastTheme nutzt Display-Info für scaling
+// FastTheme uses display info for scaling
 FastTheme.setTitleBarColor(hwnd, r, g, b);
-// FastTheme reagiert auf Theme-Änderungen (nicht Display)
+// FastTheme reacts to theme changes (not display)
 FastTheme.onThemeChanged(dark -> updateUI());
 ```
 
-**Beide Module sind unabhängig, können aber zusammenarbeiten.**
+**Both modules are independent but can work together.**
 
 ---
 
-## Design-Prinzipien
+## Design Principles
 
-1. **Hardware-Nähe** - Direkte Windows-API-Nutzung
-2. **Zero-Overhead** - Nur was nötig ist, kein Bloat
-3. **Event-Driven** - Echtzeit-Updates via Listener
-4. **Per-Monitor** - Erstklassige Multi-Monitor-Unterstützung
-5. **Thread-Safe** - Alle APIs thread-sicher
+1. **Hardware-Native** - Direct Windows API usage
+2. **Zero-Overhead** - Only what's needed, no bloat
+3. **Event-Driven** - Real-time updates via listener
+4. **Per-Monitor** - First-class multi-monitor support
+5. **Thread-Safe** - All APIs are thread-safe
 
 ---
 
-## Ziel
+## Goal
 
-**FastDisplay = Die Display-API für Java, die es bisher nicht gab.**
+**FastDisplay = The display API for Java that didn't exist before.**
 
-Präzise, hardware-nah, echtzeitfähig, multi-monitor-aware.
-
+Precise, hardware-native, real-time, multi-monitor-aware.

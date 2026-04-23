@@ -1,7 +1,7 @@
 package fastdisplay;
 
 /**
- * Demo - Display Monitoring Example using FastDisplay v1.1.0 API.
+ * Demo - Display Monitoring Example using FastDisplay v1.0.0 API.
  *
  * <p>This demo showcases the display monitoring capabilities of FastDisplay:
  * <ul>
@@ -9,7 +9,6 @@ package fastdisplay;
  *   <li>DPI scaling change events</li>
  *   <li>Display orientation monitoring</li>
  *   <li>Refresh rate information</li>
- *   <li>Multi-monitor support (enumerate all displays)</li>
  * </ul>
  *
  * <p><b>How it works:</b> FastDisplay creates a hidden message-only window and
@@ -19,17 +18,17 @@ package fastdisplay;
  *   <li>WM_DPICHANGED - DPI scaling changes</li>
  * </ul>
  *
- * <p><b>Usage:</b> Run and try changing display settings or adding/removing monitors.</p>
+ * <p><b>Usage:</b> Run and try changing display settings.</p>
  *
  * @see FastDisplay#startMonitoring()
  * @see FastDisplay.DisplayListener
- * @version 1.1.0
+ * @version 1.0.0
  */
 public class Demo {
     public static void main(String[] args) {
         clearConsole();
 
-        System.out.println("FastDisplay v1.1.0");
+        System.out.println("FastDisplay v1.0.0");
         System.out.println("────────────────────────────────────────────────────────");
         System.out.println();
 
@@ -45,10 +44,6 @@ public class Demo {
 
         System.out.println("EVENT LOG");
         System.out.println("────────────────────────────────────────────────────────");
-
-        // Show current monitor (where the monitoring window is)
-        int currentMonitor = display.getCurrentMonitorIndex();
-        System.out.printf("%-21s monitor=%d%n", "[CURRENT]", currentMonitor);
 
         display.setListener(new FastDisplay.DisplayListener() {
             @Override
@@ -70,19 +65,6 @@ public class Demo {
             @Override
             public void onOrientationChanged(int monitorIndex, FastDisplay.Orientation orientation) {
                 printDisplayInfo(monitorIndex, 0, 0, 0, 0, orientation, "[EVENT]", "[ORIENTATION]");
-            }
-
-            @Override
-            public void onWindowMonitorChanged(int oldMonitorIndex, int newMonitorIndex, int newDpi) {
-                int scalePercent = (newDpi * 100) / 96;
-                System.out.printf("%-21s monitor %d → %d, dpi=%-3d (%-3d%%)%n",
-                    "[EVENT] [CURRENT]", oldMonitorIndex, newMonitorIndex, newDpi, scalePercent);
-            }
-
-            @Override
-            public void onColorProfileChanged(int monitorIndex, String colorProfile) {
-                System.out.printf("%-21s monitor=%d, profile=%s%n",
-                    "[EVENT] [COLOR]", monitorIndex, colorProfile);
             }
         });
 

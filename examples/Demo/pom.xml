@@ -27,7 +27,7 @@
     </repositories>
 
     <dependencies>
-        <!-- FastDisplay from local project -->
+        <!-- FastDisplay from local Maven repository -->
         <dependency>
             <groupId>io.github.andrestubbe</groupId>
             <artifactId>fastdisplay</artifactId>
