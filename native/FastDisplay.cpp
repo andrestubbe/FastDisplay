@@ -47,8 +47,12 @@ static MonitorInfo monitors[16];  // Support up to 16 monitors
 static UINT_PTR g_refreshRateTimer = 0;
 static std::atomic<bool> g_refreshRateMonitoring(false);
 
+// DPI check timer (one-shot after WM_SETTINGCHANGE)
+static UINT_PTR g_dpiCheckTimer = 0;
+
 // Forward declarations for timer callbacks
 static VOID CALLBACK RefreshRateCallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime);
+static VOID CALLBACK DelayedDPICheckCallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime);
 
 // Forward declaration for helper function
 static int getMonitorIndexFromWindow(HWND hwnd);
@@ -325,6 +329,67 @@ static VOID CALLBACK RefreshRateCallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent,
     }
 }
 
+// Delayed DPI check callback (one-shot after WM_SETTINGCHANGE)
+static VOID CALLBACK DelayedDPICheckCallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime) {
+    if (!g_jvm || !g_displayObj) return;
+
+    // Save old DPI values before re-enumeration
+    int oldDpiValues[16];
+    {
+        std::lock_guard<std::mutex> lock(monitorMutex);
+        for (int i = 0; i < monitorCount; i++) {
+            oldDpiValues[i] = monitors[i].dpi;
+        }
+    }
+
+    // Re-enumerate monitors to get current state
+    {
+        std::lock_guard<std::mutex> lock(monitorMutex);
+        monitorCount = 0;
+        EnumDisplayMonitors(nullptr, nullptr, EnumMonitorsCallback, 0);
+    }
+
+    // Check each monitor for DPI changes
+    std::lock_guard<std::mutex> lock(monitorMutex);
+    for (int i = 0; i < monitorCount; i++) {
+        UINT dpiX = 96, dpiY = 96;
+        if (SUCCEEDED(GetDpiForMonitor(monitors[i].handle, MDT_EFFECTIVE_DPI, &dpiX, &dpiY))) {
+            int newDpi = (int)dpiX;
+            if (newDpi != oldDpiValues[i]) {
+                // DPI changed - notify Java with resolution event
+                if (g_jvm && g_displayObj && g_notifyMethodId) {
+                    JNIEnv* env;
+                    jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
+                    bool didAttach = false;
+
+                    if (attachResult == JNI_EDETACHED) {
+                        if (g_jvm->AttachCurrentThread((void**)&env, nullptr) == 0) {
+                            didAttach = true;
+                        } else {
+                            continue;
+                        }
+                    } else if (attachResult != JNI_OK) {
+                        continue;
+                    }
+
+                    env->CallVoidMethod(g_displayObj, g_notifyMethodId, i,
+                        monitors[i].width, monitors[i].height, newDpi, monitors[i].refreshRate);
+
+                    if (didAttach) {
+                        g_jvm->DetachCurrentThread();
+                    }
+                }
+            }
+        }
+    }
+
+    // Kill the one-shot timer
+    if (g_dpiCheckTimer != 0) {
+        KillTimer(hwnd, g_dpiCheckTimer);
+        g_dpiCheckTimer = 0;
+    }
+}
+
 static void initColorProfileTracking() {
     for (int i = 0; i < 16; i++) {
         lastColorProfiles[i][0] = '\0';
@@ -537,48 +602,9 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
         }
 
         case WM_SETTINGCHANGE: {
-            // Re-enumerate monitors to get current state
-            {
-                std::lock_guard<std::mutex> lock(monitorMutex);
-                monitorCount = 0;
-                EnumDisplayMonitors(nullptr, nullptr, EnumMonitorsCallback, 0);
-            }
-
-            // Check if this is a DPI change by querying current DPI
-            HMONITOR hMonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-            if (hMonitor) {
-                UINT dpiX = 96, dpiY = 96;
-                if (SUCCEEDED(GetDpiForMonitor(hMonitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY))) {
-                    int newDpi = (int)dpiX;
-                    int monitorIndex = findMonitorIndex(hMonitor);
-                    if (monitorIndex >= 0 && newDpi != monitors[monitorIndex].dpi) {
-                        // DPI changed - notify Java with resolution event
-                        int oldDpi = monitors[monitorIndex].dpi;
-                        monitors[monitorIndex].dpi = newDpi;
-                        if (g_jvm && g_displayObj && g_notifyMethodId) {
-                            JNIEnv* env;
-                            jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
-                            bool didAttach = false;
-
-                            if (attachResult == JNI_EDETACHED) {
-                                if (g_jvm->AttachCurrentThread((void**)&env, nullptr) == 0) {
-                                    didAttach = true;
-                                } else {
-                                    return 0;
-                                }
-                            } else if (attachResult != JNI_OK) {
-                                return 0;
-                            }
-
-                            env->CallVoidMethod(g_displayObj, g_notifyMethodId, monitorIndex,
-                                monitors[monitorIndex].width, monitors[monitorIndex].height, newDpi, monitors[monitorIndex].refreshRate);
-
-                            if (didAttach) {
-                                g_jvm->DetachCurrentThread();
-                            }
-                        }
-                    }
-                }
+            // Trigger delayed DPI check (one-shot timer after 100ms)
+            if (g_dpiCheckTimer == 0) {
+                g_dpiCheckTimer = SetTimer(hwnd, 3, 100, DelayedDPICheckCallback);
             }
             // Check if this is a color profile change
             if (lParam) {
@@ -710,6 +736,12 @@ static DWORD WINAPI MonitorThread(LPVOID lpParam) {
         g_refreshRateTimer = 0;
     }
     g_refreshRateMonitoring.store(false);
+
+    // Cleanup DPI check timer
+    if (g_dpiCheckTimer != 0) {
+        KillTimer(hwnd, g_dpiCheckTimer);
+        g_dpiCheckTimer = 0;
+    }
 
     return 0;
 }
