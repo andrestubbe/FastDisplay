@@ -43,34 +43,55 @@ static std::mutex monitorMutex;
 static int monitorCount = 0;
 static MonitorInfo monitors[16];  // Support up to 16 monitors
 
-// DXGI for refresh rate change detection
-static IDXGIFactory5* g_dxgiFactory = nullptr;
-static DWORD g_dxgiCookie = 0;
+// Refresh rate polling timer
+static HANDLE g_refreshRateTimer = nullptr;
+static std::atomic<bool> g_refreshRateMonitoring(false);
 
-// Initialize DXGI for refresh rate monitoring
-static bool initDXGI(HWND hwnd) {
-    if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory5), (void**)&g_dxgiFactory))) {
-        return false;
+// Refresh rate polling callback
+static VOID CALLBACK RefreshRateCallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime) {
+    if (!g_jvm || !g_displayObj) return;
+
+    JNIEnv* env;
+    jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
+    bool didAttach = false;
+
+    if (attachResult == JNI_EDETACHED) {
+        if (g_jvm->AttachCurrentThread((void**)&env, nullptr) == 0) {
+            didAttach = true;
+        } else {
+            return;
+        }
+    } else if (attachResult != JNI_OK) {
+        return;
     }
 
-    // Register window for DXGI mode change events
-    if (FAILED(g_dxgiFactory->RegisterOcclusionStatusWindow(hwnd, WM_USER + 100, &g_dxgiCookie))) {
-        g_dxgiFactory->Release();
-        g_dxgiFactory = nullptr;
-        return false;
+    // Check each monitor for refresh rate changes
+    std::lock_guard<std::mutex> lock(monitorMutex);
+    for (int i = 0; i < monitorCount; i++) {
+        MONITORINFOEXW mi = {};
+        mi.cbSize = sizeof(mi);
+        if (GetMonitorInfoW(monitors[i].handle, (LPMONITORINFO)&mi)) {
+            DEVMODEW dm = {};
+            dm.dmSize = sizeof(dm);
+            if (EnumDisplaySettingsExW(mi.szDevice, ENUM_CURRENT_SETTINGS, &dm, 0)) {
+                if (dm.dmFields & DM_DISPLAYFREQUENCY) {
+                    int newRefreshRate = dm.dmDisplayFrequency;
+                    if (newRefreshRate != monitors[i].refreshRate) {
+                        // Refresh rate changed
+                        monitors[i].refreshRate = newRefreshRate;
+                        // Notify Java
+                        if (g_notifyMethodId) {
+                            env->CallVoidMethod(g_displayObj, g_notifyMethodId, i,
+                                monitors[i].width, monitors[i].height, monitors[i].dpi, newRefreshRate);
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    return true;
-}
-
-// Cleanup DXGI resources
-static void cleanupDXGI() {
-    if (g_dxgiFactory && g_dxgiCookie) {
-        g_dxgiFactory->UnregisterOcclusionStatus(g_dxgiCookie);
-    }
-    if (g_dxgiFactory) {
-        g_dxgiFactory->Release();
-        g_dxgiFactory = nullptr;
+    if (didAttach) {
+        g_jvm->DetachCurrentThread();
     }
 }
 
@@ -274,6 +295,16 @@ static char lastColorProfiles[16][MAX_PATH];  // Track last color profile per mo
 static void initColorProfileTracking() {
     for (int i = 0; i < 16; i++) {
         lastColorProfiles[i][0] = '\0';
+    }
+
+    // Establish baseline from current monitor state
+    {
+        std::lock_guard<std::mutex> lock(monitorMutex);
+        monitorCount = 0;
+        EnumDisplayMonitors(nullptr, nullptr, EnumMonitorsCallback, 0);
+        for (int i = 0; i < monitorCount; i++) {
+            strncpy_s(lastColorProfiles[i], MAX_PATH, monitors[i].colorProfile, _TRUNCATE);
+        }
     }
 }
 
@@ -543,61 +574,6 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
         case WM_DESTROY:
             PostQuitMessage(0);
             return 0;
-
-        case WM_USER + 100: {
-            // DXGI event - refresh rate or display mode may have changed
-            // Re-enumerate monitors first
-            {
-                std::lock_guard<std::mutex> lock(monitorMutex);
-                monitorCount = 0;
-                EnumDisplayMonitors(nullptr, nullptr, EnumMonitorsCallback, 0);
-            }
-
-            // Check all monitors for refresh rate changes
-            if (g_jvm && g_displayObj) {
-                JNIEnv* env;
-                jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
-                bool didAttach = false;
-
-                if (attachResult == JNI_EDETACHED) {
-                    if (g_jvm->AttachCurrentThread((void**)&env, nullptr) == 0) {
-                        didAttach = true;
-                    }
-                } else if (attachResult != JNI_OK) {
-                    return 0;
-                }
-
-                // Check each monitor for refresh rate changes using correct device name
-                std::lock_guard<std::mutex> lock(monitorMutex);
-                for (int i = 0; i < monitorCount; i++) {
-                    MONITORINFOEXW mi = {};
-                    mi.cbSize = sizeof(mi);
-                    if (GetMonitorInfoW(monitors[i].handle, (LPMONITORINFO)&mi)) {
-                        DEVMODEW dm = {};
-                        dm.dmSize = sizeof(dm);
-                        if (EnumDisplaySettingsExW(mi.szDevice, ENUM_CURRENT_SETTINGS, &dm, 0)) {
-                            if (dm.dmFields & DM_DISPLAYFREQUENCY) {
-                                int newRefreshRate = dm.dmDisplayFrequency;
-                                if (newRefreshRate != monitors[i].refreshRate) {
-                                    // Refresh rate changed
-                                    monitors[i].refreshRate = newRefreshRate;
-                                    // Notify Java
-                                    if (g_notifyMethodId) {
-                                        env->CallVoidMethod(g_displayObj, g_notifyMethodId, i,
-                                            monitors[i].width, monitors[i].height, monitors[i].dpi, newRefreshRate);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (didAttach) {
-                    g_jvm->DetachCurrentThread();
-                }
-            }
-            return 0;
-        }
     }
     return DefWindowProcA(hwnd, uMsg, wParam, lParam);
 }
@@ -611,38 +587,41 @@ static HANDLE g_registryEvent = nullptr;
 static HANDLE g_registryThread = nullptr;
 
 static void CALLBACK WinEventProc(
-    HWINEVENTHOOK, DWORD, HWND hwnd, LONG, LONG, DWORD, DWORD)
+    HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd, LONG idObject, LONG idChild, DWORD dwEventThread, DWORD dwmsEventTime)
 {
-    HWND tracked = g_trackedWindow;
-    if (tracked == nullptr || hwnd != tracked)
-        return;
+    // Only process window location changes for the tracked window
+    if (event == EVENT_OBJECT_LOCATIONCHANGE && idObject == OBJID_WINDOW) {
+        HWND tracked = g_trackedWindow;
+        if (tracked == nullptr || hwnd != tracked)
+            return;
 
-    int newMonitorIndex = getMonitorIndexFromWindow(tracked);
-    if (newMonitorIndex != -1 && newMonitorIndex != g_lastMonitorIndex) {
-        int oldMonitorIndex = g_lastMonitorIndex;
-        g_lastMonitorIndex = newMonitorIndex;
+        int newMonitorIndex = getMonitorIndexFromWindow(tracked);
+        if (newMonitorIndex != -1 && newMonitorIndex != g_lastMonitorIndex) {
+            int oldMonitorIndex = g_lastMonitorIndex;
+            g_lastMonitorIndex = newMonitorIndex;
 
-        int newDpi = monitors[newMonitorIndex].dpi;
+            int newDpi = monitors[newMonitorIndex].dpi;
 
-        if (g_jvm && g_displayObj && g_notifyWindowMonitorChangedMethodId) {
-            JNIEnv* env;
-            jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
-            bool didAttach = false;
+            if (g_jvm && g_displayObj && g_notifyWindowMonitorChangedMethodId) {
+                JNIEnv* env;
+                jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
+                bool didAttach = false;
 
-            if (attachResult == JNI_EDETACHED) {
-                if (g_jvm->AttachCurrentThread((void**)&env, nullptr) == 0) {
-                    didAttach = true;
-                } else {
+                if (attachResult == JNI_EDETACHED) {
+                    if (g_jvm->AttachCurrentThread((void**)&env, nullptr) == 0) {
+                        didAttach = true;
+                    } else {
+                        return;
+                    }
+                } else if (attachResult != JNI_OK) {
                     return;
                 }
-            } else if (attachResult != JNI_OK) {
-                return;
-            }
 
-            env->CallVoidMethod(g_displayObj, g_notifyWindowMonitorChangedMethodId, oldMonitorIndex, newMonitorIndex, newDpi);
+                env->CallVoidMethod(g_displayObj, g_notifyWindowMonitorChangedMethodId, oldMonitorIndex, newMonitorIndex, newDpi);
 
-            if (didAttach) {
-                g_jvm->DetachCurrentThread();
+                if (didAttach) {
+                    g_jvm->DetachCurrentThread();
+                }
             }
         }
     }
@@ -682,13 +661,13 @@ static DWORD WINAPI MonitorThread(LPVOID lpParam) {
     GetMonitorInfo(targetMonitor, &mi);
 
     // Create a WS_POPUP window (not WS_OVERLAPPEDWINDOW) for DPI events
-    // Position off-screen but keep it as a real top-level window
+    // Position INSIDE the monitor bounds (not off-screen) to receive WM_DPICHANGED
     HWND hwnd = CreateWindowExA(
         0,
         "FastDisplayMonitor",
         "FastDisplay Monitor",
         WS_POPUP,  // WS_POPUP receives DPI messages correctly
-        mi.rcMonitor.left - 100, mi.rcMonitor.top - 100, 1, 1,  // Off-screen, minimal size
+        mi.rcMonitor.left + 10, mi.rcMonitor.top + 10, 1, 1,  // Inside monitor bounds, minimal size
         NULL, NULL, GetModuleHandleA(NULL), NULL
     );
 
@@ -698,8 +677,9 @@ static DWORD WINAPI MonitorThread(LPVOID lpParam) {
 
     g_hwnd = hwnd;
 
-    // Initialize DXGI for refresh rate monitoring
-    initDXGI(hwnd);
+    // Start refresh rate polling timer (every 500ms)
+    g_refreshRateMonitoring.store(true);
+    g_refreshRateTimer = SetTimer(hwnd, 1, 500, RefreshRateCallback);
 
     MSG msg = { 0 };
     while (GetMessage(&msg, nullptr, 0, 0)) {
@@ -707,8 +687,12 @@ static DWORD WINAPI MonitorThread(LPVOID lpParam) {
         DispatchMessage(&msg);
     }
 
-    // Cleanup DXGI
-    cleanupDXGI();
+    // Cleanup refresh rate timer
+    if (g_refreshRateTimer) {
+        KillTimer(hwnd, g_refreshRateTimer);
+        g_refreshRateTimer = nullptr;
+    }
+    g_refreshRateMonitoring.store(false);
 
     return 0;
 }
