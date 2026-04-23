@@ -333,6 +333,7 @@ static VOID CALLBACK DPICallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD d
         UINT dpiX = 96, dpiY = 96;
         if (SUCCEEDED(GetDpiForMonitor(monitors[i].handle, MDT_EFFECTIVE_DPI, &dpiX, &dpiY))) {
             int newDpi = (int)dpiX;
+            printf("[DEBUG] POLLING: monitor=%d, storedDpi=%d, currentDpi=%d\n", i, monitors[i].dpi, newDpi);
             if (newDpi != monitors[i].dpi) {
                 // DPI changed - notify Java with resolution event
                 int oldDpi = monitors[i].dpi;
