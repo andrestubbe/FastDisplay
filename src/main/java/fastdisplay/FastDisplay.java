@@ -238,6 +238,14 @@ public class FastDisplay {
      * @param enabled true to enable, false to disable */
     public native void setMonitorColorProfile(boolean enabled);
 
+    /** Log debug message from native code.
+     * @param message the debug message */
+    private native void logDebug(String message);
+
+    private void notifyDebug(String message) {
+        System.out.println("[NATIVE DEBUG] " + message);
+    }
+
     /** Enumerate all monitors.
      * @return array of monitor information */
     public native MonitorInfo[] enumerateMonitors();

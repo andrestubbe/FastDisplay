@@ -243,6 +243,7 @@ static jmethodID g_notifyInitialStateMethodId = nullptr;
 static jmethodID g_notifyOrientationChangedMethodId = nullptr;
 static jmethodID g_notifyWindowMonitorChangedMethodId = nullptr;
 static jmethodID g_notifyColorProfileChangedMethodId = nullptr;
+static jmethodID g_notifyDebugMethodId = nullptr;
 static std::atomic<HWND> g_hwnd = nullptr;  // FIX: atomic
 static DWORD g_threadId = 0;
 static HWND g_trackedWindow = nullptr;
@@ -253,6 +254,33 @@ static int lastHeight = 0;
 static int lastDpi = 0;
 static int lastOrientation = 0;
 static char lastColorProfiles[16][MAX_PATH];  // Track last color profile per monitor
+
+// Helper function to log debug messages to Java
+static void logDebug(const char* message) {
+    if (!g_jvm || !g_displayObj || !g_notifyDebugMethodId) return;
+
+    JNIEnv* env;
+    jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
+    bool didAttach = false;
+
+    if (attachResult == JNI_EDETACHED) {
+        if (g_jvm->AttachCurrentThread((void**)&env, nullptr) == 0) {
+            didAttach = true;
+        } else {
+            return;
+        }
+    } else if (attachResult != JNI_OK) {
+        return;
+    }
+
+    jstring msg = env->NewStringUTF(message);
+    env->CallVoidMethod(g_displayObj, g_notifyDebugMethodId, msg);
+    env->DeleteLocalRef(msg);
+
+    if (didAttach) {
+        g_jvm->DetachCurrentThread();
+    }
+}
 
 // Refresh rate polling callback
 static VOID CALLBACK RefreshRateCallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime) {
@@ -304,9 +332,12 @@ static VOID CALLBACK RefreshRateCallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent,
 
 // DPI polling callback (backup for WM_DPICHANGED)
 static VOID CALLBACK DPICallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime) {
-    printf("[DEBUG] DPICallback: Called (id=%llu)\n", (unsigned long long)idEvent);
+    char debugMsg[256];
+    sprintf_s(debugMsg, "DPICallback: Called (id=%llu)", (unsigned long long)idEvent);
+    logDebug(debugMsg);
     if (!g_jvm || !g_displayObj) {
-        printf("[DEBUG] DPICallback: Missing g_jvm=%p, g_displayObj=%p\n", (void*)g_jvm, (void*)g_displayObj);
+        sprintf_s(debugMsg, "DPICallback: Missing g_jvm=%p, g_displayObj=%p", (void*)g_jvm, (void*)g_displayObj);
+        logDebug(debugMsg);
         return;
     }
 
@@ -337,12 +368,14 @@ static VOID CALLBACK DPICallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD d
         UINT dpiX = 96, dpiY = 96;
         if (SUCCEEDED(GetDpiForMonitor(monitors[i].handle, MDT_EFFECTIVE_DPI, &dpiX, &dpiY))) {
             int newDpi = (int)dpiX;
-            printf("[DEBUG] POLLING: monitor=%d, storedDpi=%d, currentDpi=%d\n", i, monitors[i].dpi, newDpi);
+            sprintf_s(debugMsg, "POLLING: monitor=%d, storedDpi=%d, currentDpi=%d", i, monitors[i].dpi, newDpi);
+            logDebug(debugMsg);
             if (newDpi != monitors[i].dpi) {
                 // DPI changed - notify Java with resolution event
                 int oldDpi = monitors[i].dpi;
                 monitors[i].dpi = newDpi;
-                printf("[DEBUG] DPI change detected via POLLING: monitor=%d, oldDpi=%d, newDpi=%d\n", i, oldDpi, newDpi);
+                sprintf_s(debugMsg, "DPI change detected via POLLING: monitor=%d, oldDpi=%d, newDpi=%d", i, oldDpi, newDpi);
+                logDebug(debugMsg);
                 if (g_notifyMethodId) {
                     env->CallVoidMethod(g_displayObj, g_notifyMethodId, i,
                         monitors[i].width, monitors[i].height, newDpi, monitors[i].refreshRate);
@@ -602,7 +635,9 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
                     SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW);
             }
 
-            printf("[DEBUG] DPI change detected via WM_DPICHANGED: newDpi=%d\n", newDpi);
+            char debugMsg[256];
+            sprintf_s(debugMsg, "DPI change detected via WM_DPICHANGED: newDpi=%d", newDpi);
+            logDebug(debugMsg);
 
             // Fire resolution event with new DPI (combining DPI with resolution)
             if (g_jvm && g_displayObj && g_notifyMethodId) {
@@ -693,17 +728,21 @@ static DWORD WINAPI MonitorThread(LPVOID lpParam) {
 
     g_hwnd = hwnd;
 
-    printf("[DEBUG] MonitorThread: Window created, hwnd=%p\n", (void*)hwnd);
+    char debugMsg[256];
+    sprintf_s(debugMsg, "MonitorThread: Window created, hwnd=%p", (void*)hwnd);
+    logDebug(debugMsg);
 
     // Start refresh rate polling timer (every 500ms)
     g_refreshRateMonitoring.store(true);
     g_refreshRateTimer = SetTimer(hwnd, 1, 500, RefreshRateCallback);
-    printf("[DEBUG] MonitorThread: Refresh rate timer started, id=%llu\n", (unsigned long long)g_refreshRateTimer);
+    sprintf_s(debugMsg, "MonitorThread: Refresh rate timer started, id=%llu", (unsigned long long)g_refreshRateTimer);
+    logDebug(debugMsg);
 
     // Start DPI polling timer (every 500ms)
     g_dpiMonitoring.store(true);
     g_dpiTimer = SetTimer(hwnd, 2, 500, DPICallback);
-    printf("[DEBUG] MonitorThread: DPI timer started, id=%llu\n", (unsigned long long)g_dpiTimer);
+    sprintf_s(debugMsg, "MonitorThread: DPI timer started, id=%llu", (unsigned long long)g_dpiTimer);
+    logDebug(debugMsg);
 
     MSG msg = { 0 };
     while (GetMessage(&msg, nullptr, 0, 0)) {
@@ -864,6 +903,7 @@ JNIEXPORT jboolean JNICALL Java_fastdisplay_FastDisplay_startMonitoring(JNIEnv* 
     g_notifyOrientationChangedMethodId = env->GetMethodID(cls, "notifyOrientationChanged", "(II)V");
     g_notifyWindowMonitorChangedMethodId = env->GetMethodID(cls, "notifyWindowMonitorChanged", "(III)V");
     g_notifyColorProfileChangedMethodId = env->GetMethodID(cls, "notifyColorProfileChanged", "(ILjava/lang/String;)V");
+    g_notifyDebugMethodId = env->GetMethodID(cls, "notifyDebug", "(Ljava/lang/String;)V");
 
     // Initialize color profile tracking
     initColorProfileTracking();
