@@ -1,4 +1,4 @@
-# FastDisplay — Native Windows Display Monitoring API for Java
+# FastDisplay — Native Windows Display Monitoring API for Java [ALPHA]
 
 **Lightweight native Windows display monitoring for Java applications.**
 
