@@ -682,6 +682,7 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
 static HWINEVENTHOOK g_hook = nullptr;
 static HANDLE g_registryEvent = nullptr;
 static HANDLE g_registryThread = nullptr;
+static bool g_monitorColorProfile = true;  // Flag to enable/disable color profile monitoring
 
 static void CALLBACK WinEventProc(
     HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd, LONG idObject, LONG idChild, DWORD dwEventThread, DWORD dwmsEventTime)
@@ -819,6 +820,14 @@ static DWORD WINAPI RegistryMonitorThread(LPVOID lpParam) {
 
     if (resultUser != ERROR_SUCCESS && resultSystem != ERROR_SUCCESS) {
         return 1;
+    }
+
+    // Check if color profile monitoring is enabled
+    if (!g_monitorColorProfile) {
+        // If disabled, close keys and exit
+        if (hKeyUser) RegCloseKey(hKeyUser);
+        if (hKeySystem) RegCloseKey(hKeySystem);
+        return 0;
     }
 
     // Debounce: wait for changes to settle
@@ -1100,6 +1109,10 @@ JNIEXPORT void JNICALL Java_fastdisplay_FastDisplay_setWindowHandleNative(JNIEnv
             );
         }
     }
+}
+
+JNIEXPORT void JNICALL Java_fastdisplay_FastDisplay_setMonitorColorProfile(JNIEnv* env, jobject obj, jboolean enabled) {
+    g_monitorColorProfile = enabled;
 }
 
 JNIEXPORT jintArray JNICALL Java_fastdisplay_FastDisplay_getResolution(JNIEnv* env, jobject obj) {

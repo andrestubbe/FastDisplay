@@ -234,6 +234,10 @@ public class FastDisplay {
     /** Pass window handle to native layer. */
     private native void setWindowHandleNative(long hwnd);
 
+    /** Enable or disable color profile monitoring.
+     * @param enabled true to enable, false to disable */
+    public native void setMonitorColorProfile(boolean enabled);
+
     /** Enumerate all monitors.
      * @return array of monitor information */
     public native MonitorInfo[] enumerateMonitors();
