@@ -355,6 +355,15 @@ static VOID CALLBACK DPICallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD d
         return;
     }
 
+    // Save old DPI values before re-enumeration
+    int oldDpiValues[16];
+    {
+        std::lock_guard<std::mutex> lock(monitorMutex);
+        for (int i = 0; i < monitorCount; i++) {
+            oldDpiValues[i] = monitors[i].dpi;
+        }
+    }
+
     // Re-enumerate monitors to get current state
     {
         std::lock_guard<std::mutex> lock(monitorMutex);
@@ -368,13 +377,11 @@ static VOID CALLBACK DPICallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD d
         UINT dpiX = 96, dpiY = 96;
         if (SUCCEEDED(GetDpiForMonitor(monitors[i].handle, MDT_EFFECTIVE_DPI, &dpiX, &dpiY))) {
             int newDpi = (int)dpiX;
-            sprintf_s(debugMsg, "POLLING: monitor=%d, storedDpi=%d, currentDpi=%d", i, monitors[i].dpi, newDpi);
+            sprintf_s(debugMsg, "POLLING: monitor=%d, oldDpi=%d, currentDpi=%d", i, oldDpiValues[i], newDpi);
             logDebug(debugMsg);
-            if (newDpi != monitors[i].dpi) {
+            if (newDpi != oldDpiValues[i]) {
                 // DPI changed - notify Java with resolution event
-                int oldDpi = monitors[i].dpi;
-                monitors[i].dpi = newDpi;
-                sprintf_s(debugMsg, "DPI change detected via POLLING: monitor=%d, oldDpi=%d, newDpi=%d", i, oldDpi, newDpi);
+                sprintf_s(debugMsg, "DPI change detected via POLLING: monitor=%d, oldDpi=%d, newDpi=%d", i, oldDpiValues[i], newDpi);
                 logDebug(debugMsg);
                 if (g_notifyMethodId) {
                     env->CallVoidMethod(g_displayObj, g_notifyMethodId, i,
