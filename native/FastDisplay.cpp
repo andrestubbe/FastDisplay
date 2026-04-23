@@ -307,7 +307,7 @@ static VOID CALLBACK RefreshRateCallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent,
     }
 }
 
-// DPI polling callback
+// DPI polling callback (backup for WM_DPICHANGED)
 static VOID CALLBACK DPICallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime) {
     if (!g_jvm || !g_displayObj) return;
 
@@ -582,6 +582,12 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
                 lastOrientation = orientation;
             }
 
+            // DPI change detection fallback (in case WM_DPICHANGED doesn't arrive) - FastTheme approach
+            if (g_notifyDPIMethodId && lastDpi != 0 && lastDpi != dpi) {
+                int scalePercent = dpi * 100 / 96;
+                env->CallVoidMethod(g_displayObj, g_notifyDPIMethodId, dpi, scalePercent);
+            }
+
             if (didAttach) {
                 g_jvm->DetachCurrentThread();
             }
@@ -719,8 +725,8 @@ static void CALLBACK WinEventProc(
 }
 
 static DWORD WINAPI MonitorThread(LPVOID lpParam) {
-    // Set DPI awareness BEFORE creating the window
-    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    // Set DPI awareness BEFORE creating the window (FastTheme approach)
+    SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
     WNDCLASSA wc = {};
     wc.lpfnWndProc = MonitorWindowProc;
@@ -731,40 +737,24 @@ static DWORD WINAPI MonitorThread(LPVOID lpParam) {
         return 1;
     }
 
-    // Find which monitor the console window is on
-    HWND consoleHwnd = GetConsoleWindow();
-    HMONITOR targetMonitor = nullptr;
-    if (consoleHwnd) {
-        RECT rect;
-        GetWindowRect(consoleHwnd, &rect);
-        POINT center = { (rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2 };
-        targetMonitor = MonitorFromPoint(center, MONITOR_DEFAULTTONEAREST);
-    }
-
-    // If no console window, use primary monitor
-    if (!targetMonitor) {
-        targetMonitor = MonitorFromPoint(POINT{0, 0}, MONITOR_DEFAULTTOPRIMARY);
-    }
-
-    // Get monitor info to position window on the correct monitor
-    MONITORINFO mi = {};
-    mi.cbSize = sizeof(mi);
-    GetMonitorInfo(targetMonitor, &mi);
-
-    // Create a WS_POPUP window (not WS_OVERLAPPEDWINDOW) for DPI events
-    // Position INSIDE the monitor bounds (not off-screen) to receive WM_DPICHANGED
+    // Create a 1x1 pixel visible window off-screen to receive WM_DPICHANGED
+    // FastTheme approach: off-screen, layered, transparent, topmost
     HWND hwnd = CreateWindowExA(
-        0,
+        WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED,  // Tool window, no activate, layered for transparency
         "FastDisplayMonitor",
         "FastDisplay Monitor",
-        WS_POPUP,  // WS_POPUP receives DPI messages correctly
-        mi.rcMonitor.left + 10, mi.rcMonitor.top + 10, 1, 1,  // Inside monitor bounds, minimal size
+        WS_VISIBLE | WS_POPUP,  // Visible popup window (no border)
+        -10, -10, 1, 1,         // Off-screen, 1x1 pixel
         NULL, NULL, GetModuleHandleA(NULL), NULL
     );
 
     if (!hwnd) {
         return 1;
     }
+
+    // Make it fully transparent and topmost so it doesn't interfere (FastTheme approach)
+    SetLayeredWindowAttributes(hwnd, RGB(0,0,0), 0, LWA_ALPHA);
+    SetWindowPos(hwnd, HWND_TOPMOST, -10, -10, 1, 1, SWP_NOACTIVATE);
 
     g_hwnd = hwnd;
 
@@ -914,9 +904,8 @@ static DWORD WINAPI RegistryMonitorThread(LPVOID lpParam) {
 
 extern "C" {
 
-// Set process DPI awareness when DLL loads
+// Set process DPI awareness when DLL loads (removed - using thread-level in MonitorThread like FastTheme)
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
-    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     return JNI_VERSION_1_6;
 }
 
