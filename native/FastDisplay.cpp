@@ -371,10 +371,10 @@ static VOID CALLBACK DPICallback(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD d
         if (SUCCEEDED(GetDpiForMonitor(monitors[i].handle, MDT_EFFECTIVE_DPI, &dpiX, &dpiY))) {
             int newDpi = (int)dpiX;
             if (newDpi != oldDpiValues[i]) {
-                // DPI changed - notify Java with resolution event
-                if (g_notifyMethodId) {
-                    env->CallVoidMethod(g_displayObj, g_notifyMethodId, i,
-                        monitors[i].width, monitors[i].height, newDpi, monitors[i].refreshRate);
+                // DPI changed - notify Java with DPI event
+                int scalePercent = (newDpi * 100) / 96;
+                if (g_notifyDPIMethodId) {
+                    env->CallVoidMethod(g_displayObj, g_notifyDPIMethodId, i, newDpi, scalePercent);
                 }
             }
         }
