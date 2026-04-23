@@ -78,6 +78,12 @@ public class Demo {
                 System.out.printf("%-21s monitor %d → %d, dpi=%-3d (%-3d%%)%n",
                     "[EVENT] [CURRENT]", oldMonitorIndex, newMonitorIndex, newDpi, scalePercent);
             }
+
+            @Override
+            public void onColorProfileChanged(int monitorIndex, String colorProfile) {
+                System.out.printf("%-21s monitor=%d, profile=%s%n",
+                    "[EVENT] [COLOR]", monitorIndex, colorProfile);
+            }
         });
 
         display.startMonitoring();

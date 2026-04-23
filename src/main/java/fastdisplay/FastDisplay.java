@@ -129,6 +129,8 @@ public class FastDisplay {
         void onOrientationChanged(int monitorIndex, Orientation orientation);
         /** Called when tracked window moves to a different monitor. */
         void onWindowMonitorChanged(int oldMonitorIndex, int newMonitorIndex, int newDPI);
+        /** Called when color profile changes. */
+        void onColorProfileChanged(int monitorIndex, String colorProfile);
     }
 
     private DisplayListener listener;
@@ -209,6 +211,12 @@ public class FastDisplay {
     private void notifyWindowMonitorChanged(int oldIndex, int newIndex, int newDPI) {
         if (listener != null) {
             listener.onWindowMonitorChanged(oldIndex, newIndex, newDPI);
+        }
+    }
+
+    private void notifyColorProfileChanged(int monitorIndex, String colorProfile) {
+        if (listener != null) {
+            listener.onColorProfileChanged(monitorIndex, colorProfile);
         }
     }
 

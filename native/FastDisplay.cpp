@@ -258,6 +258,7 @@ static jmethodID g_notifyDPIMethodId = nullptr;
 static jmethodID g_notifyInitialStateMethodId = nullptr;
 static jmethodID g_notifyOrientationChangedMethodId = nullptr;
 static jmethodID g_notifyWindowMonitorChangedMethodId = nullptr;
+static jmethodID g_notifyColorProfileChangedMethodId = nullptr;
 static std::atomic<HWND> g_hwnd = nullptr;  // FIX: atomic
 static DWORD g_threadId = 0;
 static HWND g_trackedWindow = nullptr;
@@ -537,6 +538,13 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
 
         case WM_USER + 100: {
             // DXGI event - refresh rate or display mode may have changed
+            // Re-enumerate monitors first
+            {
+                std::lock_guard<std::mutex> lock(monitorMutex);
+                monitorCount = 0;
+                EnumDisplayMonitors(nullptr, nullptr, EnumMonitorsCallback, 0);
+            }
+
             // Check all monitors for refresh rate changes
             if (g_jvm && g_displayObj) {
                 JNIEnv* env;
@@ -551,21 +559,25 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
                     return 0;
                 }
 
-                // Check each monitor for refresh rate changes
+                // Check each monitor for refresh rate changes using correct device name
                 std::lock_guard<std::mutex> lock(monitorMutex);
                 for (int i = 0; i < monitorCount; i++) {
-                    DEVMODEW dm = {};
-                    dm.dmSize = sizeof(dm);
-                    if (EnumDisplaySettingsExW(NULL, ENUM_CURRENT_SETTINGS, &dm, 0)) {
-                        if (dm.dmFields & DM_DISPLAYFREQUENCY) {
-                            int newRefreshRate = dm.dmDisplayFrequency;
-                            if (newRefreshRate != monitors[i].refreshRate) {
-                                // Refresh rate changed
-                                monitors[i].refreshRate = newRefreshRate;
-                                // Notify Java
-                                if (g_notifyMethodId) {
-                                    env->CallVoidMethod(g_displayObj, g_notifyMethodId, i,
-                                        monitors[i].width, monitors[i].height, monitors[i].dpi, newRefreshRate);
+                    MONITORINFOEXW mi = {};
+                    mi.cbSize = sizeof(mi);
+                    if (GetMonitorInfoW(monitors[i].handle, (LPMONITORINFO)&mi)) {
+                        DEVMODEW dm = {};
+                        dm.dmSize = sizeof(dm);
+                        if (EnumDisplaySettingsExW(mi.szDevice, ENUM_CURRENT_SETTINGS, &dm, 0)) {
+                            if (dm.dmFields & DM_DISPLAYFREQUENCY) {
+                                int newRefreshRate = dm.dmDisplayFrequency;
+                                if (newRefreshRate != monitors[i].refreshRate) {
+                                    // Refresh rate changed
+                                    monitors[i].refreshRate = newRefreshRate;
+                                    // Notify Java
+                                    if (g_notifyMethodId) {
+                                        env->CallVoidMethod(g_displayObj, g_notifyMethodId, i,
+                                            monitors[i].width, monitors[i].height, monitors[i].dpi, newRefreshRate);
+                                    }
                                 }
                             }
                         }
@@ -738,6 +750,41 @@ static DWORD WINAPI RegistryMonitorThread(LPVOID lpParam) {
             // Debounce: only report if 1 second has passed since last event
             if (currentTime - lastEventTime > 1000) {
                 lastEventTime = currentTime;
+
+                // Re-enumerate monitors and notify Java of color profile changes
+                if (g_jvm && g_displayObj && g_notifyColorProfileChangedMethodId) {
+                    JNIEnv* env;
+                    jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
+                    bool didAttach = false;
+
+                    if (attachResult == JNI_EDETACHED) {
+                        if (g_jvm->AttachCurrentThread((void**)&env, nullptr) == 0) {
+                            didAttach = true;
+                        }
+                    } else if (attachResult != JNI_OK) {
+                        Sleep(1000);
+                        continue;
+                    }
+
+                    // Re-enumerate monitors to get new color profiles
+                    {
+                        std::lock_guard<std::mutex> lock(monitorMutex);
+                        monitorCount = 0;
+                        EnumDisplayMonitors(nullptr, nullptr, EnumMonitorsCallback, 0);
+                    }
+
+                    // Notify Java for each monitor with color profile change
+                    std::lock_guard<std::mutex> lock(monitorMutex);
+                    for (int i = 0; i < monitorCount; i++) {
+                        jstring profile = env->NewStringUTF(monitors[i].colorProfile);
+                        env->CallVoidMethod(g_displayObj, g_notifyColorProfileChangedMethodId, i, profile);
+                        env->DeleteLocalRef(profile);
+                    }
+
+                    if (didAttach) {
+                        g_jvm->DetachCurrentThread();
+                    }
+                }
             }
             // Wait for changes to settle
             Sleep(1000);
@@ -777,8 +824,9 @@ JNIEXPORT jboolean JNICALL Java_fastdisplay_FastDisplay_startMonitoring(JNIEnv* 
     g_notifyInitialStateMethodId = env->GetMethodID(cls, "notifyInitialState", "(IIIII)V");
     g_notifyOrientationChangedMethodId = env->GetMethodID(cls, "notifyOrientationChanged", "(II)V");
     g_notifyWindowMonitorChangedMethodId = env->GetMethodID(cls, "notifyWindowMonitorChanged", "(III)V");
+    g_notifyColorProfileChangedMethodId = env->GetMethodID(cls, "notifyColorProfileChanged", "(ILjava/lang/String;)V");
 
-    if (!g_notifyMethodId || !g_notifyDPIMethodId || !g_notifyInitialStateMethodId || !g_notifyOrientationChangedMethodId) {
+    if (!g_notifyMethodId || !g_notifyDPIMethodId || !g_notifyInitialStateMethodId || !g_notifyOrientationChangedMethodId || !g_notifyColorProfileChangedMethodId) {
          return JNI_FALSE;
     }
 
@@ -992,11 +1040,12 @@ JNIEXPORT jint JNICALL Java_fastdisplay_FastDisplay_getOrientation(JNIEnv* env, 
 
 JNIEXPORT jint JNICALL Java_fastdisplay_FastDisplay_getCurrentMonitorIndex(JNIEnv* env, jobject obj) {
     // Ensure monitors are enumerated
-    if (monitorCount == 0) {
-        enumerateMonitors();
+    {
+        std::lock_guard<std::mutex> lock(monitorMutex);
+        monitorCount = 0;
+        EnumDisplayMonitors(nullptr, nullptr, EnumMonitorsCallback, 0);
     }
 
-    // Use MonitorFromWindow to detect the console window's monitor
     HWND consoleHwnd = GetConsoleWindow();
     if (consoleHwnd) {
         HMONITOR hMonitor = MonitorFromWindow(consoleHwnd, MONITOR_DEFAULTTONEAREST);
@@ -1008,7 +1057,6 @@ JNIEXPORT jint JNICALL Java_fastdisplay_FastDisplay_getCurrentMonitorIndex(JNIEn
         }
     }
 
-    // Fallback to primary monitor (monitor 0)
     return 0;
 }
 
