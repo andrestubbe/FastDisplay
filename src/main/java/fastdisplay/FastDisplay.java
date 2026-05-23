@@ -280,4 +280,31 @@ public class FastDisplay {
      * This method is idempotent - calling it multiple times is safe.</p>
      */
     public native void stopMonitoring();
+
+    /** Enumerate all connected monitors.
+     * 
+     * <p>Returns information about all currently connected displays including
+     * resolution, DPI, orientation, and refresh rate.</p>
+     * 
+     * @return array of MonitorInfo objects, or null if enumeration fails
+     */
+    public native MonitorInfo[] enumerateMonitors();
+
+    /** Get current display resolution.
+     * 
+     * @return int array with [width, height], or null if failed
+     */
+    public native int[] getResolution();
+
+    /** Get current display scale percentage.
+     * 
+     * @return scale percentage (e.g., 100, 125, 150), or 0 if failed
+     */
+    public native int getScale();
+
+    /** Get current display orientation.
+     * 
+     * @return current orientation, or null if failed
+     */
+    public native Orientation getOrientation();
 }
