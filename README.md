@@ -1,4 +1,4 @@
-# FastDisplay — Native Display Monitoring & DPI API for Java [v0.1.0]
+﻿# FastDisplay â€” Native Display Monitoring & DPI API for Java [v0.1.0]
 
 **High-performance display telemetry for the FastJava ecosystem. Monitor resolution, DPI scaling, refresh rates, and orientation changes with zero latency.**
 
@@ -19,10 +19,10 @@
 - [License](#license)
 
 ## Features
-- **📊 Real-Time Telemetry**: Monitor Resolution, DPI, and Refresh Rate.
-- **🔄 Event Driven**: Native callbacks for `WM_DISPLAYCHANGE` and `WM_DPICHANGED`.
-- **🖥️ Multi-Monitor Support**: Detect and track attributes across multiple displays.
-- **⚡ Zero Overhead**: Lightweight JNI layer with no polling required.
+- **ðŸ“Š Real-Time Telemetry**: Monitor Resolution, DPI, and Refresh Rate.
+- **ðŸ”„ Event Driven**: Native callbacks for `WM_DISPLAYCHANGE` and `WM_DPICHANGED`.
+- **ðŸ–¥ï¸ Multi-Monitor Support**: Detect and track attributes across multiple displays.
+- **âš¡ Zero Overhead**: Lightweight JNI layer with no polling required.
 
 ## Quick Start
 
@@ -43,7 +43,7 @@ cd FastDisplay
 ### Option 1: Maven (Recommended)
 Add the JitPack repository and the dependencies to your `pom.xml`:
 
-`xml
+```xml
 <repositories>
     <repository>
         <id>jitpack.io</id>
@@ -58,6 +58,7 @@ Add the JitPack repository and the dependencies to your `pom.xml`:
         <artifactId>fastdisplay</artifactId>
         <version>v0.1.0</version>
     </dependency>
+
     <!-- FastCore (Required Native Loader) -->
     <dependency>
         <groupId>com.github.andrestubbe</groupId>
@@ -65,19 +66,19 @@ Add the JitPack repository and the dependencies to your `pom.xml`:
         <version>v0.1.0</version>
     </dependency>
 </dependencies>
-`
+```
 
 ### Option 2: Gradle (via JitPack)
-`groovy
+```groovy
 repositories {
     maven { url 'https://jitpack.io' }
 }
 
 dependencies {
-    implementation 'com.github.andrestubbe:.1.0'
+    implementation 'com.github.andrestubbe:fastdisplay:v0.1.0'
     implementation 'com.github.andrestubbe:fastcore:v0.1.0'
 }
-`
+```
 
 ### Option 3: Direct Download (No Build Tool)
 Download the latest JARs directly to add them to your classpath:
@@ -96,9 +97,9 @@ Download the latest JARs directly to add them to your classpath:
 See [COMPILE.md](COMPILE.md) for detailed build instructions.
 
 ## License
-MIT License — See [LICENSE](LICENSE) for details.
+MIT License â€” See [LICENSE](LICENSE) for details.
 
 ---
-**Part of the FastJava Ecosystem** — *Making the JVM faster.*
+**Part of the FastJava Ecosystem** â€” *Making the JVM faster.*
 
 
