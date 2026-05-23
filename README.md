@@ -1,4 +1,4 @@
-﻿# FastDisplay â€” Native Display Monitoring & DPI API for Java [v0.1.0]
+﻿# FastDisplay — Native Display Monitoring & DPI API for Java [v0.1.0]
 
 **High-performance display telemetry for the FastJava ecosystem. Monitor resolution, DPI scaling, refresh rates, and orientation changes with zero latency.**
 
@@ -19,10 +19,10 @@
 - [License](#license)
 
 ## Features
-- **ðŸ“Š Real-Time Telemetry**: Monitor Resolution, DPI, and Refresh Rate.
-- **ðŸ”„ Event Driven**: Native callbacks for `WM_DISPLAYCHANGE` and `WM_DPICHANGED`.
-- **ðŸ–¥ï¸ Multi-Monitor Support**: Detect and track attributes across multiple displays.
-- **âš¡ Zero Overhead**: Lightweight JNI layer with no polling required.
+- **📊 Real-Time Telemetry**: Monitor Resolution, DPI, and Refresh Rate.
+- **🔄 Event Driven**: Native callbacks for `WM_DISPLAYCHANGE` and `WM_DPICHANGED`.
+- **🖥️ Multi-Monitor Support**: Detect and track attributes across multiple displays.
+- **⚡ Zero Overhead**: Lightweight JNI layer with no polling required.
 
 ## Quick Start
 
@@ -97,9 +97,9 @@ Download the latest JARs directly to add them to your classpath:
 See [COMPILE.md](COMPILE.md) for detailed build instructions.
 
 ## License
-MIT License â€” See [LICENSE](LICENSE) for details.
+MIT License — See [LICENSE](LICENSE) for details.
 
 ---
-**Part of the FastJava Ecosystem** â€” *Making the JVM faster.*
+**Part of the FastJava Ecosystem** — *Making the JVM faster.*
 
 
