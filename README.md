@@ -1,6 +1,4 @@
-﻿# FastDisplay — Native Display Monitoring & DPI API for Java [v0.1.0]
-
-**High-performance display telemetry for the FastJava ecosystem. Monitor resolution, DPI scaling, refresh rates, and orientation changes with zero latency.**
+﻿# FastDisplay v0.1.0 [ALPHA] — Native Display Monitoring & DPI API for Java
 
 [![Status](https://img.shields.io/badge/status-v0.1.0-brightgreen.svg)](https://github.com/andrestubbe/FastDisplay/releases/tag/v0.1.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -8,11 +6,18 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010+-lightgrey.svg)]()
 [![JitPack](https://img.shields.io/badge/JitPack-ready-green.svg)](https://jitpack.io/#andrestubbe)
 
+**High-performance display telemetry for the FastJava ecosystem. Monitor resolution, DPI scaling, refresh rates, and
+orientation changes with zero latency.**
+
+**FastDisplay** is the dedicated display monitoring module of the FastJava ecosystem. It provides real-time events for
+display changes, allowing your Java application to respond instantly to resolution shifts or DPI scaling updates.
+
+[![FastFileIndex Showcase](docs/screenshot.png)](https://www.youtube.com/watch?v=BZsqQl7WqWk)
+
 ---
 
-**FastDisplay** is the dedicated display monitoring module of the FastJava ecosystem. It provides real-time events for display changes, allowing your Java application to respond instantly to resolution shifts or DPI scaling updates.
-
 ## Table of Contents
+
 - [Features](#features)
 - [Quick Start](#quick-start)
 - [Installation](#installation)
@@ -20,6 +25,7 @@
 - [License](#license)
 
 ## Features
+
 - **📊 Real-Time Telemetry**: Monitor Resolution, DPI, and Refresh Rate.
 - **🔄 Event Driven**: Native callbacks for `WM_DISPLAYCHANGE` and `WM_DPICHANGED`.
 - **🖥️ Multi-Monitor Support**: Detect and track attributes across multiple displays.
@@ -42,9 +48,11 @@ cd FastDisplay
 ## Installation
 
 ### Option 1: Maven (Recommended)
+
 Add the JitPack repository and the dependencies to your `pom.xml`:
 
 ```xml
+
 <repositories>
     <repository>
         <id>jitpack.io</id>
@@ -53,23 +61,24 @@ Add the JitPack repository and the dependencies to your `pom.xml`:
 </repositories>
 
 <dependencies>
-    <!-- FastDisplay Library -->
-    <dependency>
-        <groupId>com.github.andrestubbe</groupId>
-        <artifactId>fastdisplay</artifactId>
-        <version>v0.1.0</version>
-    </dependency>
+<!-- FastDisplay Library -->
+<dependency>
+    <groupId>com.github.andrestubbe</groupId>
+    <artifactId>fastdisplay</artifactId>
+    <version>v0.1.0</version>
+</dependency>
 
-    <!-- FastCore (Required Native Loader) -->
-    <dependency>
-        <groupId>com.github.andrestubbe</groupId>
-        <artifactId>fastcore</artifactId>
-        <version>v0.1.0</version>
-    </dependency>
+<!-- FastCore (Required Native Loader) -->
+<dependency>
+    <groupId>com.github.andrestubbe</groupId>
+    <artifactId>fastcore</artifactId>
+    <version>v0.1.0</version>
+</dependency>
 </dependencies>
 ```
 
 ### Option 2: Gradle (via JitPack)
+
 ```groovy
 repositories {
     maven { url 'https://jitpack.io' }
@@ -82,22 +91,27 @@ dependencies {
 ```
 
 ### Option 3: Direct Download (No Build Tool)
+
 Download the latest JARs directly to add them to your classpath:
 
-1. 📦 **[fastdisplay-v0.1.0.jar](https://github.com/andrestubbe/FastDisplay/releases/download/v0.1.0/fastdisplay-v0.1.0.jar)** (The Core Library)
-2. ⚙️ **[fastcore-v0.1.0.jar](https://github.com/andrestubbe/FastCore/releases/download/v0.1.0/fastcore-v0.1.0.jar)** (The Mandatory Native Loader)
+1. 📦 *
+   *[fastdisplay-v0.1.0.jar](https://github.com/andrestubbe/FastDisplay/releases/download/v0.1.0/fastdisplay-v0.1.0.jar)
+   ** (The Core Library)
+2. ⚙️ **[fastcore-v0.1.0.jar](https://github.com/andrestubbe/FastCore/releases/download/v0.1.0/fastcore-v0.1.0.jar)** (
+   The Mandatory Native Loader)
 
 > [!IMPORTANT]
 > All JARs must be in your classpath for the native JNI calls to function correctly.
 
-
 ## Build from Source
+
 - **JDK 17+**
 - **Windows 10/11**
 
 See [COMPILE.md](COMPILE.md) for detailed build instructions.
 
 ## License
+
 MIT License — See [LICENSE](LICENSE) for details.
 
 ---
