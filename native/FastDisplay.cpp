@@ -31,6 +31,8 @@
 #include <jni.h>
 #include <mutex>
 #include <atomic>
+#include <vector>
+#include <highlevelmonitorconfigurationapi.h>
 
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "gdi32.lib")
@@ -39,6 +41,7 @@
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "setupapi.lib")
 #pragma comment(lib, "cfgmgr32.lib")
+#pragma comment(lib, "Dxva2.lib")
 
 #define MAX_DEVICE_ID_LEN 200
 
@@ -643,7 +646,7 @@ static DWORD WINAPI MonitorThread(LPVOID lpParam) {
  * @param obj FastDisplay object
  * @return true if monitoring started successfully
  */
-JNIEXPORT jboolean JNICALL Java_fastdisplay_FastDisplay_startMonitoring(JNIEnv* env, jobject obj) {
+extern "C" JNIEXPORT jboolean JNICALL Java_fastdisplay_FastDisplay_startMonitoring(JNIEnv* env, jobject obj) {
     if (g_jvm == nullptr) {
         env->GetJavaVM(&g_jvm);
     }
@@ -685,7 +688,7 @@ JNIEXPORT jboolean JNICALL Java_fastdisplay_FastDisplay_startMonitoring(JNIEnv* 
  * @param env JNI environment
  * @param obj FastDisplay object
  */
-JNIEXPORT void JNICALL Java_fastdisplay_FastDisplay_stopMonitoring(JNIEnv* env, jobject obj) {
+extern "C" JNIEXPORT void JNICALL Java_fastdisplay_FastDisplay_stopMonitoring(JNIEnv* env, jobject obj) {
     HWND hwnd = g_hwnd.load();
     if (hwnd != nullptr) {
         PostMessage(hwnd, WM_CLOSE, 0, 0);
@@ -856,3 +859,204 @@ JNIEXPORT jint JNICALL Java_fastdisplay_FastDisplay_getOrientation(JNIEnv* env, 
 }
 
 } // extern "C"
+
+// ============================================================================
+// EXTENDED MONITOR FEATURES (v1.1+)
+// ============================================================================
+
+// 1. HDR Status via DXGI
+static bool GetDxgiOutputForMonitor(HMONITOR hMonitor, IDXGIOutput1** outOutput) {
+    *outOutput = nullptr;
+
+    IDXGIFactory1* factory = nullptr;
+    if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory1), (void**)&factory))) {
+        return false;
+    }
+
+    for (UINT adapterIndex = 0;; ++adapterIndex) {
+        IDXGIAdapter1* adapter = nullptr;
+        if (factory->EnumAdapters1(adapterIndex, &adapter) == DXGI_ERROR_NOT_FOUND)
+            break;
+
+        for (UINT outputIndex = 0;; ++outputIndex) {
+            IDXGIOutput* output = nullptr;
+            if (adapter->EnumOutputs(outputIndex, &output) == DXGI_ERROR_NOT_FOUND)
+                break;
+
+            DXGI_OUTPUT_DESC desc = {};
+            if (SUCCEEDED(output->GetDesc(&desc)) && desc.Monitor == hMonitor) {
+                HRESULT hr = output->QueryInterface(__uuidof(IDXGIOutput1), (void**)outOutput);
+                output->Release();
+                adapter->Release();
+                factory->Release();
+                return SUCCEEDED(hr);
+            }
+
+            output->Release();
+        }
+
+        adapter->Release();
+    }
+
+    factory->Release();
+    return false;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_fastdisplay_FastDisplay_isHdrEnabled(JNIEnv* env, jobject obj, jint monitorIndex) {
+    std::lock_guard<std::mutex> lock(monitorMutex);
+    if (monitorIndex < 0 || monitorIndex >= monitorCount)
+        return JNI_FALSE;
+
+    HMONITOR hMonitor = monitors[monitorIndex].handle;
+
+    IDXGIOutput1* output1 = nullptr;
+    if (!GetDxgiOutputForMonitor(hMonitor, &output1))
+        return JNI_FALSE;
+
+    BOOL hdr = FALSE;
+    IDXGIOutput6* output6 = nullptr;
+    if (SUCCEEDED(output1->QueryInterface(__uuidof(IDXGIOutput6), (void**)&output6))) {
+        DXGI_OUTPUT_DESC1 desc1 = {};
+        if (SUCCEEDED(output6->GetDesc1(&desc1))) {
+            DXGI_COLOR_SPACE_TYPE cs = desc1.ColorSpace;
+            if (cs == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020 ||
+                cs == DXGI_COLOR_SPACE_RGB_STUDIO_G2084_NONE_P2020 ||
+                cs == DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P2020) {
+                hdr = TRUE;
+            }
+        }
+        output6->Release();
+    }
+
+    output1->Release();
+    return hdr ? JNI_TRUE : JNI_FALSE;
+}
+
+// 2. Color Profile per Monitor
+extern "C" JNIEXPORT jstring JNICALL
+Java_fastdisplay_FastDisplay_getColorProfileForMonitor(JNIEnv* env, jobject obj, jint monitorIndex) {
+    std::lock_guard<std::mutex> lock(monitorMutex);
+    if (monitorIndex < 0 || monitorIndex >= monitorCount)
+        return nullptr;
+
+    HMONITOR hMonitor = monitors[monitorIndex].handle;
+
+    MONITORINFOEXW mi = {};
+    mi.cbSize = sizeof(mi);
+    if (!GetMonitorInfoW(hMonitor, &mi))
+        return nullptr;
+
+    HDC hdc = CreateDCW(nullptr, mi.szDevice, nullptr, nullptr);
+    if (!hdc)
+        return nullptr;
+
+    DWORD size = 0;
+    SetICMMode(hdc, ICM_ON);
+    if (!GetICMProfileW(hdc, &size, nullptr) && GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+        DeleteDC(hdc);
+        return nullptr;
+    }
+
+    std::wstring path;
+    path.resize(size);
+    if (!GetICMProfileW(hdc, &size, path.data())) {
+        DeleteDC(hdc);
+        return nullptr;
+    }
+
+    DeleteDC(hdc);
+    path.resize(wcslen(path.c_str()));
+    return env->NewString((const jchar*)path.c_str(), (jsize)path.size());
+}
+
+// 3. EDID per SetupAPI
+static bool GetEdidForMonitorIndex(int index, std::vector<BYTE>& edidOut) {
+    edidOut.clear();
+
+    HDEVINFO devInfo = SetupDiGetClassDevsW(&GUID_DEVCLASS_MONITOR, nullptr, nullptr,
+                                            DIGCF_PRESENT | DIGCF_PROFILE);
+    if (devInfo == INVALID_HANDLE_VALUE)
+        return false;
+
+    DWORD devIndex = 0;
+    int currentMonitor = 0;
+    SP_DEVINFO_DATA devData = {};
+    devData.cbSize = sizeof(devData);
+
+    while (SetupDiEnumDeviceInfo(devInfo, devIndex++, &devData)) {
+        HKEY hDevRegKey = SetupDiOpenDevRegKey(devInfo, &devData,
+                                               DICS_FLAG_GLOBAL, 0,
+                                               DIREG_DEV, KEY_READ);
+        if (hDevRegKey == INVALID_HANDLE_VALUE)
+            continue;
+
+        BYTE edid[256];
+        DWORD edidSize = sizeof(edid);
+        DWORD type = 0;
+        LONG res = RegQueryValueExW(hDevRegKey, L"EDID", nullptr, &type, edid, &edidSize);
+        RegCloseKey(hDevRegKey);
+
+        if (res == ERROR_SUCCESS && type == REG_BINARY && edidSize >= 128) {
+            if (currentMonitor == index) {
+                edidOut.assign(edid, edid + edidSize);
+                SetupDiDestroyDeviceInfoList(devInfo);
+                return true;
+            }
+            currentMonitor++;
+        }
+    }
+
+    SetupDiDestroyDeviceInfoList(devInfo);
+    return false;
+}
+
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_fastdisplay_FastDisplay_getEdidForMonitor(JNIEnv* env, jobject obj, jint monitorIndex) {
+    std::vector<BYTE> edid;
+    if (!GetEdidForMonitorIndex(monitorIndex, edid) || edid.empty())
+        return nullptr;
+
+    jbyteArray arr = env->NewByteArray((jsize)edid.size());
+    if (!arr) return nullptr;
+    env->SetByteArrayRegion(arr, 0, (jsize)edid.size(), (jbyte*)edid.data());
+    return arr;
+}
+
+// 4. Optional: Brightness Control
+static bool SetBrightnessForMonitorIndex(int index, int percent) {
+    if (percent < 0) percent = 0;
+    if (percent > 100) percent = 100;
+
+    std::lock_guard<std::mutex> lock(monitorMutex);
+    if (index < 0 || index >= monitorCount)
+        return false;
+
+    HMONITOR hMonitor = monitors[index].handle;
+
+    DWORD num = 0;
+    if (!GetNumberOfPhysicalMonitorsFromHMONITOR(hMonitor, &num) || num == 0)
+        return false;
+
+    std::vector<PHYSICAL_MONITOR> phys(num);
+    if (!GetPhysicalMonitorsFromHMONITOR(hMonitor, num, phys.data()))
+        return false;
+
+    bool ok = false;
+    for (DWORD i = 0; i < num; ++i) {
+        DWORD minB = 0, curB = 0, maxB = 0;
+        if (GetMonitorBrightness(phys[i].hPhysicalMonitor, &minB, &curB, &maxB)) {
+            DWORD newB = minB + (DWORD)((maxB - minB) * (percent / 100.0));
+            if (SetMonitorBrightness(phys[i].hPhysicalMonitor, newB))
+                ok = true;
+        }
+        DestroyPhysicalMonitor(phys[i].hPhysicalMonitor);
+    }
+
+    return ok;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_fastdisplay_FastDisplay_setBrightness(JNIEnv* env, jobject obj, jint monitorIndex, jint percent) {
+    return SetBrightnessForMonitorIndex(monitorIndex, percent) ? JNI_TRUE : JNI_FALSE;
+}

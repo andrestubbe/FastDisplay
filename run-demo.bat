@@ -1,6 +1,8 @@
 @echo off
+chcp 65001 >nul
+
 echo ⚡ Building Main Project...
-call mvn -q clean package -DskipTests
+call mvn -q clean install -DskipTests
 if %ERRORLEVEL% NEQ 0 ( pause & exit /b )
 echo 🚀 Running Hero Demo...
 cd examples\Demo

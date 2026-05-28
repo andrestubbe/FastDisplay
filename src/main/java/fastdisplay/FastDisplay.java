@@ -93,23 +93,46 @@ public class FastDisplay {
         /** Refresh rate in Hz. */
         public final int refreshRate;
 
+        // Extended Information
+        /** True if HDR is enabled for this monitor. */
+        public final boolean hdrEnabled;
+        /** Color profile path or name (e.g., ICC/ICM). */
+        public final String colorProfile;
+        /** Raw EDID data. */
+        public final byte[] edid;
+
         /**
-         * Constructs a MonitorInfo object.
+         * Constructs a MonitorInfo object with extended features.
          * @param index monitor index
          * @param width display width
          * @param height display height
          * @param dpi dots per inch
          * @param orientation display orientation
          * @param refreshRate refresh rate in Hz
+         * @param hdrEnabled true if HDR is enabled
+         * @param colorProfile path to color profile
+         * @param edid raw EDID data
          */
         public MonitorInfo(int index, int width, int height, int dpi,
-                           Orientation orientation, int refreshRate) {
+                           Orientation orientation, int refreshRate,
+                           boolean hdrEnabled, String colorProfile, byte[] edid) {
             this.index = index;
             this.width = width;
             this.height = height;
             this.dpi = dpi;
             this.orientation = orientation;
             this.refreshRate = refreshRate;
+            this.hdrEnabled = hdrEnabled;
+            this.colorProfile = colorProfile;
+            this.edid = edid;
+        }
+
+        /**
+         * Backwards-compatible constructor for old native signatures.
+         */
+        public MonitorInfo(int index, int width, int height, int dpi,
+                           Orientation orientation, int refreshRate) {
+            this(index, width, height, dpi, orientation, refreshRate, false, null, null);
         }
 
         @Override
@@ -179,6 +202,9 @@ public class FastDisplay {
          * @param orientation new display orientation
          */
         void onOrientationChanged(int monitorIndex, Orientation orientation);
+
+        /** Called when display color profile changes. */
+        void onColorProfileChanged(int monitorIndex);
     }
 
     // ============================
@@ -250,6 +276,11 @@ public class FastDisplay {
         }
     }
 
+    /** Called from native code with debug messages. */
+    private void notifyDebug(String message) {
+        // No-op: override or log as needed
+    }
+
     /** Called from native code when DPI changes. */
     private void notifyDPIChanged(int monitorIndex, int dpi, int scalePercent) {
         if (listener != null) {
@@ -257,6 +288,13 @@ public class FastDisplay {
                 lastReportedDpi = dpi;
                 listener.onDPIChanged(monitorIndex, dpi, scalePercent);
             }
+        }
+    }
+
+    /** Called from native code when Color Profile changes. */
+    private void notifyColorProfileChanged(int monitorIndex) {
+        if (listener != null) {
+            listener.onColorProfileChanged(monitorIndex);
         }
     }
 
@@ -307,4 +345,39 @@ public class FastDisplay {
      * @return current orientation, or null if failed
      */
     public native Orientation getOrientation();
+
+    // ============================
+    // Extended Monitor Features (v1.1+)
+    // ============================
+
+    /** Check if HDR is enabled for the specified monitor.
+     * 
+     * @param monitorIndex monitor index
+     * @return true if HDR is enabled, false otherwise
+     */
+    public native boolean isHdrEnabled(int monitorIndex);
+
+    /** Get the active color profile (ICC/ICM) for the specified monitor.
+     * 
+     * @param monitorIndex monitor index
+     * @return color profile path/name, or null if not available
+     */
+    public native String getColorProfileForMonitor(int monitorIndex);
+
+    /** Get the raw EDID data for the specified monitor.
+     * 
+     * @param monitorIndex monitor index
+     * @return byte array containing EDID data, or null if not available
+     */
+    public native byte[] getEdidForMonitor(int monitorIndex);
+
+    /** Set the brightness for the specified monitor.
+     * 
+     * <p>Note: This is heavily dependent on the physical monitor and graphics driver.</p>
+     * 
+     * @param monitorIndex monitor index
+     * @param percent brightness percentage (0-100)
+     * @return true if successfully set, false otherwise
+     */
+    public native boolean setBrightness(int monitorIndex, int percent);
 }

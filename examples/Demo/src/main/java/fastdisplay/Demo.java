@@ -28,22 +28,55 @@ public class Demo {
     public static void main(String[] args) {
         clearConsole();
 
-        System.out.println("FastDisplay v1.0.0");
-        System.out.println("────────────────────────────────────────────────────────");
+        System.out.println(FastANSI.BOLD + FastANSI.FG_CYAN + "FastDisplay v0.2.0" + FastANSI.RESET);
+        System.out.println("──────────────────────────────────────────────");
         System.out.println();
 
         FastDisplay display = new FastDisplay();
 
-        // Enumerate all monitors
         FastDisplay.MonitorInfo[] monitors = display.enumerateMonitors();
         if (monitors != null && monitors.length > 0) {
             for (FastDisplay.MonitorInfo m : monitors) {
-                System.out.println(m.toString());
+                System.out.println(FastANSI.BOLD + "MONITOR " + m.index + FastANSI.RESET);
+                System.out.println("• " + m.width + "×" + m.height + " @ " + m.refreshRate + " Hz");
+                System.out.println("• DPI " + m.dpi + " (" + m.scalePercent + "%)");
+                System.out.println("• " + m.orientation);
+
+                byte[] edid = display.getEdidForMonitor(m.index);
+                if (edid != null) {
+                    System.out.println("• " + FastDisplayUtils.parseManufacturer(edid) + " – " + FastDisplayUtils.parseModelName(edid));
+                    System.out.println("• Size: " + String.format("%.2f\"", FastDisplayUtils.parseSizeInInches(edid)));
+                    System.out.println("• HDR: " + FastDisplayUtils.parseHdrCapabilities(edid).getOrDefault("HDR", false));
+                } else {
+                    System.out.println("• EDID: " + FastANSI.FG_RED + "not available" + FastANSI.RESET);
+                }
+
+                System.out.println("• DXGI HDR: " + display.isHdrEnabled(m.index));
+                
+                String profile = display.getColorProfileForMonitor(m.index);
+                if (profile != null && !profile.isEmpty()) {
+                    String file = new java.io.File(profile).getName();
+                    System.out.println("• ICC: " + file);
+                } else {
+                    System.out.println("• ICC: " + FastANSI.FG_RED + "None" + FastANSI.RESET);
+                }
+                System.out.println();
             }
         }
 
-        System.out.println("EVENT LOG");
-        System.out.println("────────────────────────────────────────────────────────");
+        System.out.println(FastANSI.BOLD + "VIRTUAL DESKTOPS" + FastANSI.RESET);
+        try {
+            FastDesktop desktop = new FastDesktop();
+            String currentDesktopId = desktop.getCurrentDesktopId();
+            System.out.println("• Current ID: " + currentDesktopId);
+            System.out.println();
+        } catch (Throwable t) {
+            System.out.println("Virtual Desktops not supported or failed: " + t.getMessage());
+        }
+        System.out.println();
+        System.out.println(FastANSI.BOLD + "EVENT LOG" + FastANSI.RESET);
+        System.out.println("• —");
+        System.out.println();
 
         display.setListener(new FastDisplay.DisplayListener() {
             @Override
@@ -65,6 +98,11 @@ public class Demo {
             @Override
             public void onOrientationChanged(int monitorIndex, FastDisplay.Orientation orientation) {
                 printDisplayInfo(monitorIndex, 0, 0, 0, 0, orientation, "[EVENT]", "[ORIENTATION]");
+            }
+
+            @Override
+            public void onColorProfileChanged(int monitorIndex) {
+                System.out.printf("%-21s monitor=%d -> ICC profile updated%n", "[EVENT] [COLORPROFILE]", monitorIndex);
             }
         });
 
@@ -118,3 +156,4 @@ public class Demo {
         }
     }
 }
+

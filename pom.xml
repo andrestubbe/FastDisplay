@@ -7,7 +7,7 @@
 
     <groupId>com.github.andrestubbe</groupId>
     <artifactId>FastDisplay</artifactId>
-    <version>0.1.0</version>
+    <version>0.2.0</version>
     <packaging>jar</packaging>
 
     <name>FastDisplay</name>
@@ -159,7 +159,7 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
-                            <finalName>${project.artifactId}-${project.version}-all</finalName>
+                            <finalName>${project.artifactId}-${project.version}</finalName>
                             <artifactSet>
                                 <includes>
                                     <include>*:*</include>

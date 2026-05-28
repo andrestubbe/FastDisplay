@@ -7,7 +7,7 @@
 
     <groupId>com.github.andrestubbe</groupId>
             <artifactId>fastdisplay-demo</artifactId>
-            <version>0.1.0</version>
+            <version>0.2.0</version>
     <packaging>jar</packaging>
 
     <name>FastDisplay Demo</name>
@@ -31,13 +31,19 @@
         <dependency>
             <groupId>com.github.andrestubbe</groupId>
             <artifactId>FastDisplay</artifactId>
-            <version>0.1.0</version>
+            <version>0.2.0</version>
         </dependency>
         <!-- FastCore required for native library loading -->
         <dependency>
             <groupId>com.github.andrestubbe</groupId>
             <artifactId>fastcore</artifactId>
             <version>0.1.0</version>
+        </dependency>
+        <!-- FastANSI for terminal output -->
+        <dependency>
+            <groupId>com.github.andrestubbe</groupId>
+            <artifactId>FastANSI</artifactId>
+            <version>main-SNAPSHOT</version>
         </dependency>
     </dependencies>
 
