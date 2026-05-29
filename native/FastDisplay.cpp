@@ -22,6 +22,7 @@
  */
 
 #include <windows.h>
+#include <shobjidl_core.h>
 #include <shellscalingapi.h>
 #include <dxgi1_6.h>
 #include <icm.h>
@@ -32,6 +33,7 @@
 #include <mutex>
 #include <atomic>
 #include <vector>
+#include <string>
 #include <highlevelmonitorconfigurationapi.h>
 
 #pragma comment(lib, "user32.lib")
@@ -161,7 +163,7 @@ static BOOL CALLBACK EnumMonitorsCallback(HMONITOR hMonitor, HDC hdcMonitor, LPR
 // ============================================================================
 
 /** Java VM instance (set during initialization) */
-static JavaVM* g_jvm = nullptr;
+JavaVM* g_jvm = nullptr;
 
 /** Java FastDisplay object reference (global) */
 static jobject g_displayObj = nullptr;
@@ -172,6 +174,7 @@ static jmethodID g_notifyDPIMethodId = nullptr;
 static jmethodID g_notifyInitialStateMethodId = nullptr;
 static jmethodID g_notifyOrientationChangedMethodId = nullptr;
 static jmethodID g_notifyDebugMethodId = nullptr;
+static jmethodID g_notifyColorProfileChangedMethodId = nullptr;
 
 /** Hidden window handle for receiving Windows messages (atomic for thread safety) */
 static std::atomic<HWND> g_hwnd = nullptr;
@@ -182,6 +185,7 @@ static int lastWidth = 0;
 static int lastHeight = 0;
 static int lastDpi = 0;
 static int lastOrientation = 0;
+static int lastRefreshRate = 0;
 
 // Helper function to log debug messages to Java
 static void logDebug(const char* message) {
@@ -213,6 +217,7 @@ static void logDebug(const char* message) {
 // ============================================================================
 // JNI CALLBACK FUNCTIONS
 // ============================================================================
+
 
 /**
  * @brief DPI polling timer callback
@@ -367,6 +372,7 @@ static void sendInitialState() {
     lastHeight = height;
     lastDpi = dpi;
     lastOrientation = orientation;
+    lastRefreshRate = refreshRate;
 
     if (didAttach) {
         g_jvm->DetachCurrentThread();
@@ -456,7 +462,7 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
             }
 
             // Separate resolution and orientation events
-            bool resolutionChanged = (width != lastWidth || height != lastHeight || dpi != lastDpi);
+            bool resolutionChanged = (width != lastWidth || height != lastHeight || dpi != lastDpi || refreshRate != lastRefreshRate);
             bool orientationChanged = (orientation != lastOrientation);
 
             if (resolutionChanged && g_notifyMethodId) {
@@ -464,6 +470,7 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
                 lastWidth = width;
                 lastHeight = height;
                 lastDpi = dpi;
+                lastRefreshRate = refreshRate;
             }
 
             if (orientationChanged && g_notifyOrientationChangedMethodId) {
@@ -484,14 +491,19 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
         }
 
         case WM_SETTINGCHANGE: {
-            // Check if this is a color profile change
-            if (lParam) {
-                LPCWSTR lParamStr = (LPCWSTR)lParam;
-                if (wcsstr(lParamStr, L"ICM") != nullptr ||
-                    wcsstr(lParamStr, L"ColorProfile") != nullptr ||
-                    wcsstr(lParamStr, L"Color") != nullptr ||
-                    wcsstr(lParamStr, L"Display") != nullptr) {
-                    // Color profile change detected
+            if (g_jvm && g_displayObj && g_notifyColorProfileChangedMethodId) {
+                JNIEnv* env;
+                jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
+                bool didAttach = false;
+                if (attachResult == JNI_EDETACHED) {
+                    if (g_jvm->AttachCurrentThread((void**)&env, nullptr) == 0) didAttach = true;
+                } else if (attachResult != JNI_OK) attachResult = JNI_ERR;
+
+                if (attachResult == JNI_OK || didAttach) {
+                    HMONITOR hMonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+                    int monitorIndex = findMonitorIndex(hMonitor);
+                    env->CallVoidMethod(g_displayObj, g_notifyColorProfileChangedMethodId, monitorIndex);
+                    if (didAttach) g_jvm->DetachCurrentThread();
                 }
             }
             // Check if this is a DPI change by querying current DPI
@@ -662,7 +674,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_fastdisplay_FastDisplay_startMonitori
     g_notifyInitialStateMethodId = env->GetMethodID(clazz, "notifyInitialState", "(IIIII)V");
     g_notifyOrientationChangedMethodId = env->GetMethodID(clazz, "notifyOrientationChanged", "(II)V");
     g_notifyDebugMethodId = env->GetMethodID(clazz, "notifyDebug", "(Ljava/lang/String;)V");
-
+    g_notifyColorProfileChangedMethodId = env->GetMethodID(clazz, "notifyColorProfileChanged", "(I)V");
 
     // Create monitoring thread
     HANDLE hThread = CreateThread(nullptr, 0, MonitorThread, nullptr, 0, &g_threadId);

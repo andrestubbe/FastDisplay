@@ -28,7 +28,7 @@ public class Demo {
     public static void main(String[] args) {
         clearConsole();
 
-        System.out.println(FastANSI.BOLD + FastANSI.FG_CYAN + "FastDisplay v0.2.0" + FastANSI.RESET);
+        System.out.println("FastDisplay v0.2.0");
         System.out.println("──────────────────────────────────────────────");
         System.out.println();
 
@@ -37,34 +37,17 @@ public class Demo {
         FastDisplay.MonitorInfo[] monitors = display.enumerateMonitors();
         if (monitors != null && monitors.length > 0) {
             for (FastDisplay.MonitorInfo m : monitors) {
-                System.out.println(FastANSI.BOLD + "MONITOR " + m.index + FastANSI.RESET);
-                System.out.println("• " + m.width + "×" + m.height + " @ " + m.refreshRate + " Hz");
-                System.out.println("• DPI " + m.dpi + " (" + m.scalePercent + "%)");
-                System.out.println("• " + m.orientation);
-
                 byte[] edid = display.getEdidForMonitor(m.index);
-                if (edid != null) {
-                    System.out.println("• " + FastDisplayUtils.parseManufacturer(edid) + " – " + FastDisplayUtils.parseModelName(edid));
-                    System.out.println("• Size: " + String.format("%.2f\"", FastDisplayUtils.parseSizeInInches(edid)));
-                    System.out.println("• HDR: " + FastDisplayUtils.parseHdrCapabilities(edid).getOrDefault("HDR", false));
-                } else {
-                    System.out.println("• EDID: " + FastANSI.FG_RED + "not available" + FastANSI.RESET);
-                }
-
-                System.out.println("• DXGI HDR: " + display.isHdrEnabled(m.index));
-                
+                boolean dxgiHdr = display.isHdrEnabled(m.index);
                 String profile = display.getColorProfileForMonitor(m.index);
-                if (profile != null && !profile.isEmpty()) {
-                    String file = new java.io.File(profile).getName();
-                    System.out.println("• ICC: " + file);
-                } else {
-                    System.out.println("• ICC: " + FastANSI.FG_RED + "None" + FastANSI.RESET);
-                }
+
+                System.out.print(FastDisplayUtils.formatMonitorReport(m, edid, dxgiHdr, profile));
                 System.out.println();
             }
         }
 
-        System.out.println(FastANSI.BOLD + "VIRTUAL DESKTOPS" + FastANSI.RESET);
+        System.out.println("VIRTUAL DESKTOPS");
+        System.out.println("────────────────────────────────────────────────────────");
         try {
             FastDesktop desktop = new FastDesktop();
             String currentDesktopId = desktop.getCurrentDesktopId();
@@ -74,9 +57,25 @@ public class Demo {
             System.out.println("Virtual Desktops not supported or failed: " + t.getMessage());
         }
         System.out.println();
-        System.out.println(FastANSI.BOLD + "EVENT LOG" + FastANSI.RESET);
+        System.out.println("EVENT LOG");
         System.out.println("• —");
         System.out.println();
+
+        FastDesktop globalDesktop = null;
+        try {
+            globalDesktop = new FastDesktop();
+            globalDesktop.setListener(new FastDesktop.DesktopListener() {
+                @Override
+                public void onDesktopChanged(String newDesktopId) {
+                    System.out.printf("%-21s desktop=%s%n", "[EVENT] [VIRTUALDESKTOP]", newDesktopId);
+                }
+                @Override public void onDesktopCreated(String desktopId) {}
+                @Override public void onDesktopDeleted(String desktopId) {}
+                @Override public void onWindowMovedToDesktop(long hwnd, String desktopId) {}
+            });
+        } catch (Throwable t) {
+            // Virtual desktops not supported
+        }
 
         display.setListener(new FastDisplay.DisplayListener() {
             @Override
@@ -146,7 +145,7 @@ public class Demo {
     private static void clearConsole() {
         try {
             if (System.getProperty("os.name").contains("Windows")) {
-                new ProcessBuilder("cmd", "/c", "cls").inheritIO().start().waitFor();
+                new ProcessBuilder("cmd", "/c", "chcp 65001 > nul & cls").inheritIO().start().waitFor();
             } else {
                 System.out.print("\033[H\033[2J");
                 System.out.flush();

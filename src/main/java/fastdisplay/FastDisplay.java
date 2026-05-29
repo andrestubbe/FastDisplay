@@ -298,6 +298,8 @@ public class FastDisplay {
         }
     }
 
+    // Removed notifyVirtualDesktopChanged
+
     // ============================
     // Native Method Declarations
     // ============================

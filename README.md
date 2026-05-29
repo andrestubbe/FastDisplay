@@ -6,7 +6,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010+-lightgrey.svg)]()
 [![JitPack](https://img.shields.io/badge/JitPack-ready-green.svg)](https://jitpack.io/#andrestubbe)
 
-**? High-performance display telemetry for the FastJava ecosystem. Monitor resolution, DPI scaling, refresh rates, and
+**⚡ High-performance display telemetry for the FastJava ecosystem. Monitor resolution, DPI scaling, refresh rates, and
 orientation changes with zero latency.**
 
 **FastDisplay** is the dedicated display monitoring module of the FastJava ecosystem. It provides real-time events for
