@@ -1,4 +1,4 @@
-﻿# FastDisplay v0.2.0 [ALPHA] — Native Display Monitoring & DPI API for Java
+# FastDisplay v0.2.0 [ALPHA] � Native Display Monitoring & DPI API for Java
 
 [![Status](https://img.shields.io/badge/status-v0.2.0-brightgreen.svg)](https://github.com/andrestubbe/FastDisplay/releases/tag/v0.2.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -6,7 +6,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010+-lightgrey.svg)]()
 [![JitPack](https://img.shields.io/badge/JitPack-ready-green.svg)](https://jitpack.io/#andrestubbe)
 
-**⚡ High-performance display telemetry for the FastJava ecosystem. Monitor resolution, DPI scaling, refresh rates, and
+**? High-performance display telemetry for the FastJava ecosystem. Monitor resolution, DPI scaling, refresh rates, and
 orientation changes with zero latency.**
 
 **FastDisplay** is the dedicated display monitoring module of the FastJava ecosystem. It provides real-time events for
@@ -26,12 +26,12 @@ display changes, allowing your Java application to respond instantly to resoluti
 
 ## Features
 
-- **🚀 Real-Time Telemetry**: Monitor Resolution, DPI, and Refresh Rate.
-- **⚡ Event Driven**: Native callbacks for `WM_DISPLAYCHANGE` and `WM_DPICHANGED`.
-- **🖥️ Multi-Monitor Support**: Detect and track attributes across multiple displays.
-- **🗃️ EDID & HDR Capabilities (v0.2.0)**: Hardware-level parsing of EDID, DXGI HDR detection, and ICC color profile extraction via `FastDisplayUtils`.
-- **🪟 Virtual Desktops (v0.2.0)**: Integration with Windows Task View / Virtual Desktops through the `FastDesktop` sister module.
-- **💨 Zero Overhead**: Lightweight JNI layer with no polling required.
+- **?? Real-Time Telemetry**: Monitor Resolution, DPI, and Refresh Rate.
+- **? Event Driven**: Native callbacks for `WM_DISPLAYCHANGE` and `WM_DPICHANGED`.
+- **??? Multi-Monitor Support**: Detect and track attributes across multiple displays.
+- **??? EDID & HDR Capabilities (v0.2.0)**: Hardware-level parsing of EDID, DXGI HDR detection, and ICC color profile extraction via `FastDisplayUtils`.
+- **?? Virtual Desktops (v0.2.0)**: Integration with Windows Task View / Virtual Desktops through the `FastDesktop` sister module.
+- **?? Zero Overhead**: Lightweight JNI layer with no polling required.
 
 ## Quick Start
 
@@ -103,7 +103,7 @@ Download the latest JARs directly to add them to your classpath:
 
 * **[COMPILE.md](docs/COMPILE.md)**: Full compilation guide (MSVC C++17 build chain + JNI Setup).
 * **[REFERENCE.md](docs/REFERENCE.md)**: Full API descriptions, border configurations, and codepoint index.
-* **[PHILOSOPHIE.md](docs/PHILOSOPHIE.md)**: The engineering rationale for zero-allocation performance.
+* **[PHILOSOPHY.md](docs/PHILOSOPHY.md)**: The engineering rationale for zero-allocation performance.
 * **[ROADMAP.md](docs/ROADMAP.md)**: Future milestones and planned features.
 
 ---
@@ -120,7 +120,7 @@ Download the latest JARs directly to add them to your classpath:
 
 ## License
 
-MIT License — See [LICENSE](LICENSE) file for details.
+MIT License � See [LICENSE](LICENSE) file for details.
 
 ---
 
@@ -132,6 +132,6 @@ MIT License — See [LICENSE](LICENSE) file for details.
 
 ---
 
-**Part of the FastJava Ecosystem** — *Making the JVM faster. Small package. Maximum speed. Zero bloat. ????*
+**Part of the FastJava Ecosystem** � *Making the JVM faster. Small package. Maximum speed. Zero bloat. ????*
 
 
