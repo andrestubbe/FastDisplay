@@ -36,7 +36,7 @@
         <!-- FastCore required for native library loading -->
         <dependency>
             <groupId>com.github.andrestubbe</groupId>
-            <artifactId>fastcore</artifactId>
+            <artifactId>FastCore</artifactId>
             <version>0.1.0</version>
         </dependency>
         <!-- FastANSI for terminal output -->
