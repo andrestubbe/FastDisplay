@@ -1,4 +1,4 @@
-# FastDisplay v0.2.0 [ALPHA]  Native Display Monitoring & DPI API for Java
+# FastDisplay 0.2.0 [ALPHA-2026-05-17] — Native Display Monitoring & DPI API for Java
 
 [![Status](https://img.shields.io/badge/status-v0.2.0-brightgreen.svg)](https://github.com/andrestubbe/FastDisplay/releases/tag/v0.2.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
