@@ -15,6 +15,23 @@ display changes, allowing your Java application to respond instantly to resoluti
 
 ---
 
+## Quick Start
+
+```bash
+# Clone the repository
+git clone https://github.com/andrestubbe/FastDisplay.git
+
+# Build the native bridge
+cd FastDisplay
+.\compile.bat
+
+# Launch the DisplayDemo
+.\run-demo.bat
+```
+---
+
+---
+
 ## Table of Contents
 
 - [Features](#features)
@@ -32,20 +49,6 @@ display changes, allowing your Java application to respond instantly to resoluti
 - **🪟 Virtual Desktops (v0.2.0)**: Integration with Windows Task View / Virtual Desktops through the `FastDesktop` sister module.
 - **⏱️ Zero Overhead**: Lightweight JNI layer with no polling required.
 
-## Quick Start
-
-```bash
-# Clone the repository
-git clone https://github.com/andrestubbe/FastDisplay.git
-
-# Build the native bridge
-cd FastDisplay
-.\compile.bat
-
-# Launch the DisplayDemo
-.\run-demo.bat
-```
----
 
 ## Installation
 
