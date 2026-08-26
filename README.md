@@ -30,8 +30,6 @@ cd FastDisplay
 ```
 ---
 
----
-
 ## Table of Contents
 
 - [Features](#features)
@@ -40,7 +38,9 @@ cd FastDisplay
 - [Build from Source](#build-from-source)
 - [License](#license)
 
-## Features
+---
+
+## Key Features
 
 - **📊 Real-Time Telemetry**: Monitor Resolution, DPI, and Refresh Rate.
 - **🔔 Event Driven**: Native callbacks for `WM_DISPLAYCHANGE` and `WM_DPICHANGED`.
@@ -49,6 +49,7 @@ cd FastDisplay
 - **🪟 Virtual Desktops (v0.2.0)**: Integration with Windows Task View / Virtual Desktops through the `FastDesktop` sister module.
 - **⏱️ Zero Overhead**: Lightweight JNI layer with no polling required.
 
+---
 
 ## Installation
 
