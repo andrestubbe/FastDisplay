@@ -28,7 +28,7 @@ public class Demo {
     public static void main(String[] args) {
         clearConsole();
 
-        System.out.println("FastDisplay v0.2.0");
+        System.out.println("FastDisplay v0.1.1");
         System.out.println("──────────────────────────────────────────────");
         System.out.println();
 
