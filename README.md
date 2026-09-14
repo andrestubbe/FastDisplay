@@ -1,4 +1,4 @@
-﻿# FastDisplay 0.1.1 [ALPHA-2026-09-14] — Native Display Monitoring & DPI API for Java
+# FastDisplay 0.1.1 [ALPHA-2026-09-14] — Native Display Monitoring & DPI API for Java
 
 [![Status](https://img.shields.io/badge/status-0.1.1-brightgreen.svg)](https://github.com/andrestubbe/FastDisplay/releases/tag/0.1.1)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -75,6 +75,7 @@ public class QuickStart {
 - [Why FastDisplay?](#why-fastdisplay)
 - [Quick Start](#quick-start)
 - [Features](#features)
+- [Real-World Use Cases](#real-world-use-cases)
 - [Performance Benchmarks](#performance-benchmarks)
 - [API Quick Reference](#api-quick-reference)
 - [Installation](#installation)
@@ -110,6 +111,16 @@ Standard Java AWT / Swing (`GraphicsEnvironment`, `Toolkit`) methods for screen 
 - **🌈 EDID & HDR Capabilities**: Hardware-level parsing of EDID blocks, DXGI HDR status, and ICC color profile extraction.
 - **🪟 Virtual Desktops**: Integration with Windows Task View / Virtual Desktop manager via `FastDesktop`.
 - **⏱️ Zero Overhead**: Minimalist JNI layer with direct pinned buffers and zero polling.
+
+---
+
+## Real-World Use Cases
+
+- 🖥️ **Dynamic Per-Monitor DPI Adaptation** — Instantly rescale UI layouts, fonts, vector icons, and coordinate systems when an application window is dragged between a 4K 200% laptop screen and a 1080p 100% desktop monitor without blurry OS scaling.
+- 🎨 **Color-Critical & HDR Workflows** — Automatically switch rendering pipelines (sRGB vs. DCI-P3 / BT.2020) and load correct monitor ICC color profiles when HDR mode is enabled or active displays change.
+- 🎮 **Adaptive High-Refresh Gaming & Animation** — Detect physical panel refresh rates (60 Hz, 120 Hz, 144 Hz, 240 Hz) in real-time to adjust VSync target frames and orchestrate `FastAnimation` / `FastTween` timers accordingly.
+- 🪟 **Multi-Monitor Window & Desktop Tiling** — Query precise work areas, physical screen coordinates, and virtual desktop IDs to build autonomous window managers, HUD overlays, and cross-monitor workspace snapping.
+- 📺 **Digital Signage & Display Telemetry Auditing** — Read raw EDID descriptors (manufacturer PNP codes, serial numbers, native panel resolution, and diagonal inches) directly from graphics drivers for system diagnostic utilities.
 
 ---
 
