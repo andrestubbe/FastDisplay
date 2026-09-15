@@ -144,39 +144,39 @@ FastDisplay's parsing and telemetry pipelines are benchmarked using **JMH** to g
 
 | Method | Return Type | Description | Docs |
 |---|---|---|---|
-| `enumerateMonitors()` | `MonitorInfo[]` | Returns immutable snapshot array of all connected physical displays. | [Reference →](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
-| `setListener(listener)` | `void` | Registers a callback listener for resolution, DPI, orientation, and color events. | [Reference →](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
-| `startMonitoring()` | `boolean` | Starts the dedicated background Win32 message-only window thread. | [Reference →](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
-| `stopMonitoring()` | `void` | Stops the background message pump and releases native resources (idempotent). | [Reference →](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
-| `getResolution()` | `int[]` | Returns `[width, height]` of primary display in pixels. | [Reference →](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
-| `getScale()` | `int` | Returns current primary scaling factor (e.g. 100, 125, 150, 200). | [Reference →](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
-| `getOrientation()` | `Orientation` | Returns primary screen rotation (`LANDSCAPE`, `PORTRAIT`, etc.). | [Reference →](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
-| `isHdrEnabled(monitorIndex)` | `boolean` | Checks whether DXGI HDR rendering is active on the given display. | [Reference →](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
-| `getColorProfileForMonitor(monitorIndex)` | `String` | Returns path or identifier of active ICC/ICM color profile via WCS. | [Reference →](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
-| `getEdidForMonitor(monitorIndex)` | `byte[]` | Extracts the raw 128/256-byte binary EDID hardware descriptor block. | [Reference →](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
-| `setBrightness(monitorIndex, percent)` | `boolean` | Adjusts monitor hardware backlight via DDC/CI (0–100%). | [Reference →](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
+| `enumerateMonitors()` | `MonitorInfo[]` | Returns immutable snapshot array of all connected physical displays. | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
+| `setListener(listener)` | `void` | Registers a callback listener for resolution, DPI, orientation, and color events. | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
+| `startMonitoring()` | `boolean` | Starts the dedicated background Win32 message-only window thread. | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
+| `stopMonitoring()` | `void` | Stops the background message pump and releases native resources (idempotent). | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
+| `getResolution()` | `int[]` | Returns `[width, height]` of primary display in pixels. | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
+| `getScale()` | `int` | Returns current primary scaling factor (e.g. 100, 125, 150, 200). | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
+| `getOrientation()` | `Orientation` | Returns primary screen rotation (`LANDSCAPE`, `PORTRAIT`, etc.). | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
+| `isHdrEnabled(monitorIndex)` | `boolean` | Checks whether DXGI HDR rendering is active on the given display. | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
+| `getColorProfileForMonitor(monitorIndex)` | `String` | Returns path or identifier of active ICC/ICM color profile via WCS. | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
+| `getEdidForMonitor(monitorIndex)` | `byte[]` | Extracts the raw 128/256-byte binary EDID hardware descriptor block. | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
+| `setBrightness(monitorIndex, percent)` | `boolean` | Adjusts monitor hardware backlight via DDC/CI (0–100%). | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
 
 ### `FastDesktop` (Windows 10/11 Virtual Desktops)
 
 | Method | Return Type | Description | Docs |
 |---|---|---|---|
-| `enumerateDesktops()` | `DesktopInfo[]` | Returns all open virtual desktops with GUIDs and names. | [Reference →](docs/REFERENCE.md#2-class-fastdisplayfastdesktop) |
-| `getCurrentDesktopId()` | `String` | Returns the GUID of the currently active virtual desktop. | [Reference →](docs/REFERENCE.md#2-class-fastdisplayfastdesktop) |
-| `switchDesktop(desktopId)` | `boolean` | Switches desktop view to the specified virtual desktop GUID. | [Reference →](docs/REFERENCE.md#2-class-fastdisplayfastdesktop) |
-| `moveWindowToDesktop(hwnd, desktopId)` | `boolean` | Migrates a native Win32 window handle (`HWND`) to target virtual desktop. | [Reference →](docs/REFERENCE.md#2-class-fastdisplayfastdesktop) |
-| `setListener(listener)` | `void` | Subscribes to desktop creation, deletion, and switch events. | [Reference →](docs/REFERENCE.md#2-class-fastdisplayfastdesktop) |
+| `enumerateDesktops()` | `DesktopInfo[]` | Returns all open virtual desktops with GUIDs and names. | [Reference](docs/REFERENCE.md#2-class-fastdisplayfastdesktop) |
+| `getCurrentDesktopId()` | `String` | Returns the GUID of the currently active virtual desktop. | [Reference](docs/REFERENCE.md#2-class-fastdisplayfastdesktop) |
+| `switchDesktop(desktopId)` | `boolean` | Switches desktop view to the specified virtual desktop GUID. | [Reference](docs/REFERENCE.md#2-class-fastdisplayfastdesktop) |
+| `moveWindowToDesktop(hwnd, desktopId)` | `boolean` | Migrates a native Win32 window handle (`HWND`) to target virtual desktop. | [Reference](docs/REFERENCE.md#2-class-fastdisplayfastdesktop) |
+| `setListener(listener)` | `void` | Subscribes to desktop creation, deletion, and switch events. | [Reference](docs/REFERENCE.md#2-class-fastdisplayfastdesktop) |
 
 ### `FastDisplayUtils` (EDID Decoders & Diagnostics)
 
 | Method | Return Type | Description | Docs |
 |---|---|---|---|
-| `parseManufacturer(edid)` | `String` | Decodes 3-letter PNP vendor code (e.g. `DEL`, `SAM`, `LG`). | [Reference →](docs/REFERENCE.md#3-class-fastdisplayfastdisplayutils) |
-| `parseModelName(edid)` | `String` | Extracts ASCII monitor model name descriptor from descriptor blocks. | [Reference →](docs/REFERENCE.md#3-class-fastdisplayfastdisplayutils) |
-| `parseSerialNumber(edid)` | `String` | Extracts monitor physical serial number string from EDID. | [Reference →](docs/REFERENCE.md#3-class-fastdisplayfastdisplayutils) |
-| `parseSizeInInches(edid)` | `double` | Computes physical diagonal screen size in inches from cm dimensions. | [Reference →](docs/REFERENCE.md#3-class-fastdisplayfastdisplayutils) |
-| `parseNativeWidth/Height(edid)` | `int` | Extracts preferred native panel pixel resolution from Detailed Timings. | [Reference →](docs/REFERENCE.md#3-class-fastdisplayfastdisplayutils) |
-| `parseHdrCapabilities(edid)` | `Map<String, Boolean>` | Parses CTA-861 extension blocks for HDR, PQ, and HLG luminance metadata. | [Reference →](docs/REFERENCE.md#3-class-fastdisplayfastdisplayutils) |
-| `formatMonitorReport(m, edid, hdr, icc)` | `String` | Generates a clean ASCII diagnostic report for terminal display. | [Reference →](docs/REFERENCE.md#3-class-fastdisplayfastdisplayutils) |
+| `parseManufacturer(edid)` | `String` | Decodes 3-letter PNP vendor code (e.g. `DEL`, `SAM`, `LG`). | [Reference](docs/REFERENCE.md#3-class-fastdisplayfastdisplayutils) |
+| `parseModelName(edid)` | `String` | Extracts ASCII monitor model name descriptor from descriptor blocks. | [Reference](docs/REFERENCE.md#3-class-fastdisplayfastdisplayutils) |
+| `parseSerialNumber(edid)` | `String` | Extracts monitor physical serial number string from EDID. | [Reference](docs/REFERENCE.md#3-class-fastdisplayfastdisplayutils) |
+| `parseSizeInInches(edid)` | `double` | Computes physical diagonal screen size in inches from cm dimensions. | [Reference](docs/REFERENCE.md#3-class-fastdisplayfastdisplayutils) |
+| `parseNativeWidth/Height(edid)` | `int` | Extracts preferred native panel pixel resolution from Detailed Timings. | [Reference](docs/REFERENCE.md#3-class-fastdisplayfastdisplayutils) |
+| `parseHdrCapabilities(edid)` | `Map<String, Boolean>` | Parses CTA-861 extension blocks for HDR, PQ, and HLG luminance metadata. | [Reference](docs/REFERENCE.md#3-class-fastdisplayfastdisplayutils) |
+| `formatMonitorReport(m, edid, hdr, icc)` | `String` | Generates a clean ASCII diagnostic report for terminal display. | [Reference](docs/REFERENCE.md#3-class-fastdisplayfastdisplayutils) |
 
 ---
 
