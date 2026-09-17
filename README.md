@@ -102,6 +102,13 @@ Standard Java AWT / Swing (`GraphicsEnvironment`, `Toolkit`) methods for screen 
 - **Per-Monitor HDR & Color Profile Awareness**: Direct DXGI integration for instant HDR detection and ICC profile path discovery.
 - **Virtual Desktops Integration**: Query and coordinate across Windows 10/11 Virtual Desktops via the integrated `FastDesktop` sister API.
 
+| Feature | Java AWT / Swing | JavaFX Screen API | FastDisplay |
+|:---|:---|:---|:---|
+| **DPI Event Notification**| Polling only (No native event)| Static pulse / delayed | **Instant `WM_DPICHANGED` Win32 callback** |
+| **Per-Monitor v2 DPI** | Global cached metrics | Partial scaling queries | **True Per-Monitor v2 High-DPI** |
+| **Hardware EDID Telemetry**| Not supported | Not supported | **Raw EDID byte parser (PNP, serials)** |
+| **DXGI HDR & Color Profiles**| Not supported | Not supported | **Direct DXGI HDR & ICC profile path** |
+
 ---
 
 ## Key Features
