@@ -1,6 +1,6 @@
-# FastDisplay 0.1.1 [ALPHA-2026-09-14] — Native Display Monitoring & DPI API for Java
+# FastDisplay 0.1.2 — Native Display & Windows OS Theme Monitoring API for Java
 
-[![Status](https://img.shields.io/badge/status-0.1.1-brightgreen.svg)](https://github.com/andrestubbe/FastDisplay/releases/tag/0.1.1)
+[![Status](https://img.shields.io/badge/status-0.1.2-brightgreen.svg)](https://github.com/andrestubbe/FastDisplay/releases/tag/0.1.2)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Java](https://img.shields.io/badge/Java-17+-blue.svg)](https://www.java.com)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010+-lightgrey.svg)]()
@@ -8,9 +8,9 @@
 
 ---
 
-**🖥️ High-performance display telemetry for the FastJava ecosystem. Monitor resolution, DPI scaling, refresh rates, and orientation changes with zero latency.**
+**🖥️ High-performance display and OS environment telemetry for the FastJava ecosystem. Monitor resolution, DPI scaling, refresh rates, orientation, and Windows OS theme/accent color changes with zero latency.**
 
-**FastDisplay** is the dedicated display monitoring module of the FastJava ecosystem. It provides real-time events for display changes, allowing your Java application to respond instantly to resolution shifts or DPI scaling updates via native Win32 callbacks.
+**FastDisplay** is the dedicated display and environment monitoring module of the FastJava ecosystem. It provides real-time events for display and OS changes, allowing your Java application to respond instantly to resolution shifts, DPI scaling updates, and system-wide Dark/Light mode transitions via native Win32 callbacks and kernel event signals.
 
 [![FastDisplay Showcase](docs/screenshot.png)](https://youtu.be/suxi7OLh1sk)
 
@@ -34,7 +34,12 @@ public class QuickStart {
                     m.index, m.width, m.height, m.refreshRate, m.dpi);
         }
 
-        // 2. Register real-time event listener
+        // 2. Query Windows OS Theme State directly
+        System.out.println("Dark Mode (Apps)  : " + display.isAppDarkMode());
+        System.out.println("Dark Mode (System): " + display.isSystemDarkMode());
+        System.out.printf("Accent Color       : #%08X%n", display.getAccentColor());
+
+        // 3. Register real-time event listener
         display.setListener(new FastDisplay.DisplayListener() {
             @Override
             public void onInitialState(int width, int height, int dpi, int refreshRate, Orientation orientation) {
@@ -60,9 +65,14 @@ public class QuickStart {
             public void onColorProfileChanged(int monitorIndex) {
                 System.out.printf("Monitor #%d ICC color profile updated%n", monitorIndex);
             }
+
+            @Override
+            public void onThemeChanged(boolean isDark, int accentColor) {
+                System.out.printf("[THEME EVENT] Mode: %s | Accent: #%08X%n", (isDark ? "DARK" : "LIGHT"), accentColor);
+            }
         });
 
-        // 3. Start native message loop thread
+        // 4. Start native message loop thread
         display.startMonitoring();
     }
 }
@@ -94,10 +104,12 @@ Standard Java AWT / Swing (`GraphicsEnvironment`, `Toolkit`) methods for screen 
 - **No Event Hooks**: Standard AWT provides no notification when the user changes DPI scaling, moves a window across monitors of differing DPIs, or switches display resolution. Applications are forced to resort to costly periodic polling loops.
 - **Outdated Win32 DPI Model**: AWT often queries global metrics cached at JVM startup, failing to adapt when monitors are unplugged, dynamic display scaling is altered, or per-monitor v2 DPI scaling applies.
 - **No Hardware Telemetry**: Native capabilities like EDID blocks (vendor, model name, physical dimensions, serial numbers), DXGI HDR active states, and ICC color profile associations are completely inaccessible via standard Java SE APIs.
+- **No Native OS Theme Integration**: Java has no built-in mechanism to listen for Windows Dark/Light mode or accent color changes in real time.
 
 **FastDisplay** fixes this by communicating directly with the Windows display subsystem:
 
 - **Zero-Latency Win32 Callbacks**: Creates a lightweight, message-only window thread intercepting `WM_DISPLAYCHANGE`, `WM_DPICHANGED`, and color management messages as they happen with zero JVM polling overhead.
+- **Instant Windows Theme & Accent Color Monitoring**: Uses direct kernel event notifications via `RegNotifyChangeKeyValue` and `MsgWaitForMultipleObjectsEx` combined with `WM_THEMECHANGED` to detect Dark/Light mode and accent color switches without dummy windows or polling.
 - **Hardware-Level EDID Parsing**: FastDisplay extracts raw EDID byte arrays directly from device registry blocks and decodes vendor names, serials, and physical screen dimensions at sub-microsecond speeds.
 - **Per-Monitor HDR & Color Profile Awareness**: Direct DXGI integration for instant HDR detection and ICC profile path discovery.
 - **Virtual Desktops Integration**: Query and coordinate across Windows 10/11 Virtual Desktops via the integrated `FastDesktop` sister API.
@@ -105,6 +117,7 @@ Standard Java AWT / Swing (`GraphicsEnvironment`, `Toolkit`) methods for screen 
 | Feature | Java AWT / Swing | JavaFX Screen API | FastDisplay |
 |:---|:---|:---|:---|
 | **DPI Event Notification**| Polling only (No native event)| Static pulse / delayed | **Instant `WM_DPICHANGED` Win32 callback** |
+| **Windows Theme Listening**| Not supported | Not supported | **Instant kernel signal & callback (`onThemeChanged`)** |
 | **Per-Monitor v2 DPI** | Global cached metrics | Partial scaling queries | **True Per-Monitor v2 High-DPI** |
 | **Hardware EDID Telemetry**| Not supported | Not supported | **Raw EDID byte parser (PNP, serials)** |
 | **DXGI HDR & Color Profiles**| Not supported | Not supported | **Direct DXGI HDR & ICC profile path** |
@@ -114,7 +127,8 @@ Standard Java AWT / Swing (`GraphicsEnvironment`, `Toolkit`) methods for screen 
 ## Key Features
 
 - **📊 Real-Time Telemetry**: Instant capture of resolution, per-monitor DPI, refresh rate (Hz), and display orientation.
-- **🔔 Native Event Loop**: Dedicated background Win32 message pump for instant dispatch of display changes.
+- **🌓 Windows Theme & Accent Color Monitoring**: Real-time event notifications and direct queries (`isAppDarkMode()`, `isSystemDarkMode()`, `getAccentColor()`).
+- **🔔 Native Event Loop**: Dedicated background Win32 message pump with kernel event handles (`RegNotifyChangeKeyValue`) for instant dispatch.
 - **🖥️ Multi-Monitor Enumeration**: Detailed snapshot of all displays currently active on the desktop grid.
 - **🌈 EDID & HDR Capabilities**: Hardware-level parsing of EDID blocks, DXGI HDR status, and ICC color profile extraction.
 - **🪟 Virtual Desktops**: Integration with Windows Task View / Virtual Desktop manager via `FastDesktop`.
@@ -124,6 +138,7 @@ Standard Java AWT / Swing (`GraphicsEnvironment`, `Toolkit`) methods for screen 
 
 ## Real-World Use Cases
 
+- 🌓 **Dynamic Theme Switching** — Automatically transition Swing/JavaFX application themes between Light and Dark mode and harmonize accent colors in real time when Windows theme settings change.
 - 🖥️ **Dynamic Per-Monitor DPI Adaptation** — Instantly rescale UI layouts, fonts, vector icons, and coordinate systems when an application window is dragged between a 4K 200% laptop screen and a 1080p 100% desktop monitor without blurry OS scaling.
 - 🎨 **Color-Critical & HDR Workflows** — Automatically switch rendering pipelines (sRGB vs. DCI-P3 / BT.2020) and load correct monitor ICC color profiles when HDR mode is enabled or active displays change.
 - 🎮 **Adaptive High-Refresh Gaming & Animation** — Detect physical panel refresh rates (60 Hz, 120 Hz, 144 Hz, 240 Hz) in real-time to adjust VSync target frames and orchestrate `FastAnimation` / `FastTween` timers accordingly.
@@ -152,9 +167,12 @@ FastDisplay's parsing and telemetry pipelines are benchmarked using **JMH** to g
 | Method | Return Type | Description | Docs |
 |---|---|---|---|
 | `enumerateMonitors()` | `MonitorInfo[]` | Returns immutable snapshot array of all connected physical displays. | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
-| `setListener(listener)` | `void` | Registers a callback listener for resolution, DPI, orientation, and color events. | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
+| `setListener(listener)` | `void` | Registers a callback listener for resolution, DPI, orientation, color, and theme events. | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
 | `startMonitoring()` | `boolean` | Starts the dedicated background Win32 message-only window thread. | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
 | `stopMonitoring()` | `void` | Stops the background message pump and releases native resources (idempotent). | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
+| `isAppDarkMode()` | `boolean` | Returns whether Windows Apps are configured to use Dark Mode. | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
+| `isSystemDarkMode()` | `boolean` | Returns whether Windows System (taskbar/shell) is in Dark Mode. | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
+| `getAccentColor()` | `int` | Returns current Windows accent color as ARGB integer (`0xAARRGGBB`). | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
 | `getResolution()` | `int[]` | Returns `[width, height]` of primary display in pixels. | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
 | `getScale()` | `int` | Returns current primary scaling factor (e.g. 100, 125, 150, 200). | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
 | `getOrientation()` | `Orientation` | Returns primary screen rotation (`LANDSCAPE`, `PORTRAIT`, etc.). | [Reference](docs/REFERENCE.md#1-class-fastdisplayfastdisplay) |
@@ -191,6 +209,7 @@ FastDisplay's parsing and telemetry pipelines are benchmarked using **JMH** to g
 
 | Case | Java Example | Launcher | Description |
 |---|---|---|---|
+| **Theme & Accent Color Listener** | [ThemeListenerDemo.java](examples/Demo/src/main/java/fastdisplay/ThemeListenerDemo.java) | `run-demo-theme-listener.bat` | Real-time console demo monitoring Windows Dark/Light mode and accent color switches without dummy windows. |
 | **Display Telemetry & Event Monitor** | [Demo.java](examples/Demo/src/main/java/fastdisplay/Demo.java) | `run-demo.bat` | Live CLI monitor enumerating displays, EDID blocks, HDR status, Virtual Desktops, and event callbacks. |
 | **JMH Microbenchmark Suite** | [Benchmark.java](examples/Benchmark/src/main/java/fastdisplay/benchmark/Benchmark.java) | `run-benchmark.bat` | OpenJDK JMH microbenchmarks measuring raw EDID manufacturer and model descriptor parsing throughput. |
 
@@ -214,7 +233,7 @@ Add the JitPack repository and the dependency to your `pom.xml`:
     <dependency>
         <groupId>com.github.andrestubbe</groupId>
         <artifactId>FastDisplay</artifactId>
-        <version>0.1.1</version>
+        <version>0.1.2</version>
     </dependency>
     <!-- Unified Native JNI Loader -->
     <dependency>
@@ -233,7 +252,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.andrestubbe:FastDisplay:0.1.1'
+    implementation 'com.github.andrestubbe:FastDisplay:0.1.2'
     implementation 'com.github.andrestubbe:FastCore:0.1.0'
 }
 ```
@@ -242,7 +261,7 @@ dependencies {
 
 Download the pre-built JARs directly to add them to your classpath:
 
-1. 📦 **[FastDisplay-0.1.1.jar](https://github.com/andrestubbe/FastDisplay/releases/download/0.1.1/FastDisplay-0.1.1.jar)** (The Core Library)
+1. 📦 **[FastDisplay-0.1.2.jar](https://github.com/andrestubbe/FastDisplay/releases/download/0.1.2/FastDisplay-0.1.2.jar)** (The Core Library)
 2. ⚙️ **[FastCore-0.1.0.jar](https://github.com/andrestubbe/FastCore/releases/download/0.1.0/FastCore-0.1.0.jar)** (The Mandatory Native Loader)
 
 ---
@@ -261,7 +280,7 @@ Download the pre-built JARs directly to add them to your classpath:
 
 | Platform | Status | Notes |
 |---|---|---|
-| **Windows 10 / 11 (x64)** | ✅ Fully Supported | Win32 message loop, per-monitor v2 DPI, DXGI HDR, EDID |
+| **Windows 10 / 11 (x64)** | ✅ Fully Supported | Win32 message loop, Theme/Dark mode listening, per-monitor v2 DPI, DXGI HDR, EDID |
 | **Linux (X11 / Wayland)** | 🔗 Planned | Native XRandR / Wayland protocol integration |
 | **macOS (Apple Silicon / Intel)** | 🔗 Planned | CoreGraphics display reconfiguration callbacks |
 

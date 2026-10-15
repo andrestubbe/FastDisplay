@@ -539,32 +539,23 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
 
         case WM_THEMECHANGED:
         case WM_SETTINGCHANGE: {
-            // Check if this is a theme or color change
-            bool isThemeEvent = (uMsg == WM_THEMECHANGED);
-            if (uMsg == WM_SETTINGCHANGE && lParam != 0) {
-                LPCWSTR setting = (LPCWSTR)lParam;
-                if (wcscmp(setting, L"ImmersiveColorSet") == 0 || wcscmp(setting, L"ColorizationColor") == 0) {
-                    isThemeEvent = true;
-                }
-            }
-            if (isThemeEvent) {
-                bool isDark = IsDarkModeInternal(true);
-                int accent = GetAccentColorInternal();
-                if (isDark != (lastIsDarkMode == 1) || accent != lastAccentColor || lastIsDarkMode == -1) {
-                    lastIsDarkMode = isDark ? 1 : 0;
-                    lastAccentColor = accent;
-                    if (g_jvm && g_displayObj && g_notifyThemeChangedMethodId) {
-                        JNIEnv* env;
-                        jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
-                        bool didAttach = false;
-                        if (attachResult == JNI_EDETACHED) {
-                            if (g_jvm->AttachCurrentThread((void**)&env, nullptr) == 0) didAttach = true;
-                        } else if (attachResult != JNI_OK) attachResult = JNI_ERR;
+            // Check if theme or accent color actually changed
+            bool isDark = IsDarkModeInternal(true);
+            int accent = GetAccentColorInternal();
+            if (isDark != (lastIsDarkMode == 1) || accent != lastAccentColor || lastIsDarkMode == -1) {
+                lastIsDarkMode = isDark ? 1 : 0;
+                lastAccentColor = accent;
+                if (g_jvm && g_displayObj && g_notifyThemeChangedMethodId) {
+                    JNIEnv* env;
+                    jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
+                    bool didAttach = false;
+                    if (attachResult == JNI_EDETACHED) {
+                        if (g_jvm->AttachCurrentThread((void**)&env, nullptr) == 0) didAttach = true;
+                    } else if (attachResult != JNI_OK) attachResult = JNI_ERR;
 
-                        if (attachResult == JNI_OK || didAttach) {
-                            env->CallVoidMethod(g_displayObj, g_notifyThemeChangedMethodId, (jboolean)isDark, (jint)accent);
-                            if (didAttach) g_jvm->DetachCurrentThread();
-                        }
+                    if (attachResult == JNI_OK || didAttach) {
+                        env->CallVoidMethod(g_displayObj, g_notifyThemeChangedMethodId, (jboolean)isDark, (jint)accent);
+                        if (didAttach) g_jvm->DetachCurrentThread();
                     }
                 }
             }
@@ -706,11 +697,84 @@ static DWORD WINAPI MonitorThread(LPVOID lpParam) {
     g_dpiMonitoring.store(true);
     g_dpiTimer = SetTimer(hwnd, 2, 500, DPICallback);
 
-    MSG msg = { 0 };
-    while (GetMessage(&msg, nullptr, 0, 0)) {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
+    // Open Personalize registry key for direct notification of Dark/Light theme changes
+    HKEY hPersonalizeKey = NULL;
+    RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", 0, KEY_NOTIFY, &hPersonalizeKey);
+    HANDLE hThemeEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
+    if (hPersonalizeKey && hThemeEvent) {
+        RegNotifyChangeKeyValue(hPersonalizeKey, FALSE, REG_NOTIFY_CHANGE_LAST_SET, hThemeEvent, TRUE);
     }
+
+    // Open DWM registry key for accent color changes
+    HKEY hDwmKey = NULL;
+    RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\DWM", 0, KEY_NOTIFY, &hDwmKey);
+    HANDLE hAccentEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
+    if (hDwmKey && hAccentEvent) {
+        RegNotifyChangeKeyValue(hDwmKey, FALSE, REG_NOTIFY_CHANGE_LAST_SET, hAccentEvent, TRUE);
+    }
+
+    HANDLE waitHandles[2];
+    DWORD numHandles = 0;
+    if (hThemeEvent) waitHandles[numHandles++] = hThemeEvent;
+    if (hAccentEvent) waitHandles[numHandles++] = hAccentEvent;
+
+    MSG msg = { 0 };
+    bool running = true;
+    while (running) {
+        DWORD waitRes = MsgWaitForMultipleObjectsEx(
+            numHandles,
+            waitHandles,
+            INFINITE,
+            QS_ALLINPUT,
+            MWMO_INPUTAVAILABLE
+        );
+
+        if (waitRes >= WAIT_OBJECT_0 && waitRes < WAIT_OBJECT_0 + numHandles) {
+            // Registry event fired! Check Dark Mode & Accent Color
+            bool isDark = IsDarkModeInternal(true);
+            int accent = GetAccentColorInternal();
+            if (isDark != (lastIsDarkMode == 1) || accent != lastAccentColor || lastIsDarkMode == -1) {
+                lastIsDarkMode = isDark ? 1 : 0;
+                lastAccentColor = accent;
+                if (g_jvm && g_displayObj && g_notifyThemeChangedMethodId) {
+                    JNIEnv* env;
+                    jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
+                    bool didAttach = false;
+                    if (attachResult == JNI_EDETACHED) {
+                        if (g_jvm->AttachCurrentThread((void**)&env, nullptr) == 0) didAttach = true;
+                    } else if (attachResult != JNI_OK) attachResult = JNI_ERR;
+
+                    if (attachResult == JNI_OK || didAttach) {
+                        env->CallVoidMethod(g_displayObj, g_notifyThemeChangedMethodId, (jboolean)isDark, (jint)accent);
+                        if (didAttach) g_jvm->DetachCurrentThread();
+                    }
+                }
+            }
+
+            // Re-arm notifications
+            if (hPersonalizeKey && hThemeEvent) {
+                RegNotifyChangeKeyValue(hPersonalizeKey, FALSE, REG_NOTIFY_CHANGE_LAST_SET, hThemeEvent, TRUE);
+            }
+            if (hDwmKey && hAccentEvent) {
+                RegNotifyChangeKeyValue(hDwmKey, FALSE, REG_NOTIFY_CHANGE_LAST_SET, hAccentEvent, TRUE);
+            }
+        }
+
+        // Pump all available window messages
+        while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
+            if (msg.message == WM_QUIT) {
+                running = false;
+                break;
+            }
+            TranslateMessage(&msg);
+            DispatchMessageA(&msg);
+        }
+    }
+
+    if (hThemeEvent) CloseHandle(hThemeEvent);
+    if (hPersonalizeKey) RegCloseKey(hPersonalizeKey);
+    if (hAccentEvent) CloseHandle(hAccentEvent);
+    if (hDwmKey) RegCloseKey(hDwmKey);
 
     // Cleanup DPI timer
     if (g_dpiTimer != 0) {

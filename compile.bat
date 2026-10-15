@@ -13,7 +13,11 @@ echo.
 
 :: Check for Java
 if not defined JAVA_HOME (
-    set "JAVA_HOME=C:\Program Files\Java\jdk-25"
+    if exist "C:\Program Files\Java\jdk-21.0.12.1" (
+        set "JAVA_HOME=C:\Program Files\Java\jdk-21.0.12.1"
+    ) else (
+        set "JAVA_HOME=C:\Program Files\Java\jdk-25"
+    )
 )
 
 if not exist "%JAVA_HOME%\include\jni.h" (
@@ -62,7 +66,7 @@ if not exist build mkdir build
 echo.
 echo Compiling FastDisplay JNI Bridge...
 echo =====================================================
-cl /LD /Fe:build\fastdisplay.dll ^
+cl /LD /Fe:build\fastdisplay.dll /Fo:build\ ^
     native\FastDisplay.cpp native\FastDesktop.cpp ^
     user32.lib gdi32.lib shcore.lib advapi32.lib ole32.lib oleaut32.lib ^
     /I"%JAVA_HOME%\include" ^

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
@@ -6,8 +6,8 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.github.andrestubbe</groupId>
-            <artifactId>fastdisplay-demo</artifactId>
-            <version>0.1.0</version>
+    <artifactId>fastdisplay-demo</artifactId>
+    <version>0.1.0</version>
     <packaging>jar</packaging>
 
     <name>FastDisplay Demo</name>
@@ -17,6 +17,7 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <mainClass>fastdisplay.Demo</mainClass>
     </properties>
 
     <repositories>
@@ -31,7 +32,7 @@
         <dependency>
             <groupId>com.github.andrestubbe</groupId>
             <artifactId>FastDisplay</artifactId>
-            <version>0.1.1</version>
+            <version>0.1.2</version>
         </dependency>
         <!-- FastCore required for native library loading -->
         <dependency>
@@ -61,7 +62,7 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <mainClass>fastdisplay.Demo</mainClass>
+                    <mainClass>${mainClass}</mainClass>
                     <includeProjectDependencies>true</includeProjectDependencies>
                     <includePluginDependencies>false</includePluginDependencies>
                 </configuration>
@@ -69,5 +70,3 @@
         </plugins>
     </build>
 </project>
-
-

@@ -20,8 +20,9 @@ The build script compiles the native library and packages it with the JAR.
 ## Run Examples
 
 ```bash
-cd examples/00-basic-usage
-mvn compile exec:java
+run-demo.bat
+run-demo-theme-listener.bat
+run-benchmark.bat
 ```
 
 ## Installation
@@ -39,12 +40,12 @@ mvn compile exec:java
 <dependencies>
     <dependency>
         <groupId>com.github.andrestubbe</groupId>
-        <artifactId>fastdisplay</artifactId>
-        <version>0.1.1</version>
+        <artifactId>FastDisplay</artifactId>
+        <version>0.1.2</version>
     </dependency>
     <dependency>
         <groupId>com.github.andrestubbe</groupId>
-        <artifactId>fastcore</artifactId>
+        <artifactId>FastCore</artifactId>
         <version>0.1.0</version>
     </dependency>
 </dependencies>
@@ -58,21 +59,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.andrestubbe:fastdisplay:0.1.1'
-    implementation 'com.github.andrestubbe:fastcore:0.1.0'
+    implementation 'com.github.andrestubbe:FastDisplay:0.1.2'
+    implementation 'com.github.andrestubbe:FastCore:0.1.0'
 }
 ```
-
-## Download Pre-built JAR
-
-See [Releases Page](https://github.com/andrestubbe/FastDisplay/releases)
-
-## Troubleshooting
-
-### JNI UnsatisfiedLinkError
-
-If you get `UnsatisfiedLinkError`, the native library was not found:
-
-1. Ensure `compile.bat` was run successfully
-2. Check that the DLL exists in the project root or `build/`
-3. Ensure the DLL is in PATH or copy to `C:\Windows\System32`

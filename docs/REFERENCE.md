@@ -6,18 +6,29 @@
 
 ## 1. Class: `fastdisplay.FastDisplay`
 
-Primary engine for display monitoring and hardware queries.
+Primary engine for display monitoring, OS theme detection, and hardware queries.
 
 ### Lifecycle & Monitoring
 
 - `public boolean startMonitoring()`  
-  Starts a dedicated background Win32 message-only window thread intercepting `WM_DISPLAYCHANGE`, `WM_DPICHANGED`, and color management messages. Fires `DisplayListener.onInitialState(...)` immediately upon launch.
+  Starts a dedicated background Win32 message-only window thread intercepting `WM_DISPLAYCHANGE`, `WM_DPICHANGED`, and color management messages as well as kernel registry signals (`RegNotifyChangeKeyValue`) for theme changes. Fires `DisplayListener.onInitialState(...)` and initial theme state upon launch.
   
 - `public void stopMonitoring()`  
   Stops the background message pump and cleans up native resources. Safe to call multiple times (idempotent).
 
 - `public void setListener(DisplayListener listener)`  
-  Registers a listener interface for real-time display resolution, DPI, orientation, and color profile change notifications.
+  Registers a listener interface for real-time display resolution, DPI, orientation, color profile, and OS theme change notifications.
+
+### OS Theme & Personalization Queries
+
+- `public boolean isAppDarkMode()`  
+  Direct Win32/registry query inspecting whether Windows Apps are configured for Dark Mode (`AppsUseLightTheme == 0`).
+
+- `public boolean isSystemDarkMode()`  
+  Direct Win32/registry query inspecting whether Windows System (taskbar/shell) is configured for Dark Mode (`SystemUsesLightTheme == 0`).
+
+- `public int getAccentColor()`  
+  Direct Win32 query retrieving the current Windows Accent Color as an ARGB integer (`0xAARRGGBB`).
 
 ### Hardware & Topology Queries
 
@@ -47,7 +58,29 @@ Primary engine for display monitoring and hardware queries.
 
 ---
 
-## 2. Class: `fastdisplay.FastDesktop`
+## 2. Interface: `fastdisplay.FastDisplay.DisplayListener`
+
+- `void onInitialState(int width, int height, int dpi, int refreshRate, Orientation orientation)`  
+  Called once with the primary display's initial state when monitoring begins.
+
+- `void onResolutionChanged(int monitorIndex, int width, int height, int dpi, int refreshRate)`  
+  Fired when pixel resolution or refresh rate changes on a display.
+
+- `void onDPIChanged(int monitorIndex, int dpi, int scalePercent)`  
+  Fired when DPI scaling percentage changes.
+
+- `void onOrientationChanged(int monitorIndex, Orientation orientation)`  
+  Fired when display orientation flips or rotates.
+
+- `void onColorProfileChanged(int monitorIndex)`  
+  Fired when the active ICC color profile changes.
+
+- `default void onThemeChanged(boolean isDark, int accentColor)`  
+  Fired in real-time when the Windows OS switches between Dark and Light mode or changes the accent color.
+
+---
+
+## 3. Class: `fastdisplay.FastDesktop`
 
 Integration with the Windows 10/11 Virtual Desktop Manager.
 
@@ -68,7 +101,7 @@ Integration with the Windows 10/11 Virtual Desktop Manager.
 
 ---
 
-## 3. Class: `fastdisplay.FastDisplayUtils`
+## 4. Class: `fastdisplay.FastDisplayUtils`
 
 High-speed, zero-allocation EDID binary parsers and diagnostic tools.
 
@@ -95,7 +128,3 @@ High-speed, zero-allocation EDID binary parsers and diagnostic tools.
 
 - `public static String formatMonitorReport(MonitorInfo m, byte[] edid, boolean dxgiHdr, String iccPath)`  
   Generates a cleanly formatted terminal report summarizing resolution, DPI scaling, EDID metadata, HDR status, and color profile.
-
----
-
-**Part of the FastJava Ecosystem** — *Making the JVM faster.* 🚀
