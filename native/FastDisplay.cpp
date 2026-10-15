@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file FastDisplay.cpp
  * @brief Native Windows display monitoring implementation for Java via JNI
  * 
@@ -175,6 +175,44 @@ static jmethodID g_notifyInitialStateMethodId = nullptr;
 static jmethodID g_notifyOrientationChangedMethodId = nullptr;
 static jmethodID g_notifyDebugMethodId = nullptr;
 static jmethodID g_notifyColorProfileChangedMethodId = nullptr;
+static jmethodID g_notifyThemeChangedMethodId = nullptr;
+
+// Theme tracking state
+static int lastIsDarkMode = -1;
+static int lastAccentColor = -1;
+
+static bool QueryRegDword(HKEY hRoot, LPCWSTR subKey, LPCWSTR valueName, DWORD& outValue) {
+    DWORD data = 0;
+    DWORD dataSize = sizeof(data);
+    DWORD type = 0;
+    LSTATUS status = RegGetValueW(hRoot, subKey, valueName, RRF_RT_REG_DWORD, &type, &data, &dataSize);
+    if (status == ERROR_SUCCESS) {
+        outValue = data;
+        return true;
+    }
+    return false;
+}
+
+static bool IsDarkModeInternal(bool appsTheme) {
+    DWORD useLightTheme = 1;
+    LPCWSTR val = appsTheme ? L"AppsUseLightTheme" : L"SystemUsesLightTheme";
+    if (QueryRegDword(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", val, useLightTheme)) {
+        return useLightTheme == 0;
+    }
+    return false;
+}
+
+static int GetAccentColorInternal() {
+    DWORD accent = 0;
+    if (QueryRegDword(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\DWM", L"AccentColor", accent)) {
+        BYTE a = (accent >> 24) & 0xFF;
+        BYTE b = (accent >> 16) & 0xFF;
+        BYTE g = (accent >> 8) & 0xFF;
+        BYTE r = accent & 0xFF;
+        return (int)((a << 24) | (r << 16) | (g << 8) | b);
+    }
+    return 0;
+}
 
 /** Hidden window handle for receiving Windows messages (atomic for thread safety) */
 static std::atomic<HWND> g_hwnd = nullptr;
@@ -367,6 +405,15 @@ static void sendInitialState() {
     env->CallVoidMethod(g_displayObj, g_notifyInitialStateMethodId,
         width, height, dpi, orientation, refreshRate);
 
+    // Initial theme state
+    if (g_notifyThemeChangedMethodId) {
+        bool isDark = IsDarkModeInternal(true);
+        int accent = GetAccentColorInternal();
+        lastIsDarkMode = isDark ? 1 : 0;
+        lastAccentColor = accent;
+        env->CallVoidMethod(g_displayObj, g_notifyThemeChangedMethodId, (jboolean)isDark, (jint)accent);
+    }
+
     // Initialize tracking variables
     lastWidth = width;
     lastHeight = height;
@@ -490,7 +537,37 @@ static LRESULT CALLBACK MonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
             return 0;
         }
 
+        case WM_THEMECHANGED:
         case WM_SETTINGCHANGE: {
+            // Check if this is a theme or color change
+            bool isThemeEvent = (uMsg == WM_THEMECHANGED);
+            if (uMsg == WM_SETTINGCHANGE && lParam != 0) {
+                LPCWSTR setting = (LPCWSTR)lParam;
+                if (wcscmp(setting, L"ImmersiveColorSet") == 0 || wcscmp(setting, L"ColorizationColor") == 0) {
+                    isThemeEvent = true;
+                }
+            }
+            if (isThemeEvent) {
+                bool isDark = IsDarkModeInternal(true);
+                int accent = GetAccentColorInternal();
+                if (isDark != (lastIsDarkMode == 1) || accent != lastAccentColor || lastIsDarkMode == -1) {
+                    lastIsDarkMode = isDark ? 1 : 0;
+                    lastAccentColor = accent;
+                    if (g_jvm && g_displayObj && g_notifyThemeChangedMethodId) {
+                        JNIEnv* env;
+                        jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
+                        bool didAttach = false;
+                        if (attachResult == JNI_EDETACHED) {
+                            if (g_jvm->AttachCurrentThread((void**)&env, nullptr) == 0) didAttach = true;
+                        } else if (attachResult != JNI_OK) attachResult = JNI_ERR;
+
+                        if (attachResult == JNI_OK || didAttach) {
+                            env->CallVoidMethod(g_displayObj, g_notifyThemeChangedMethodId, (jboolean)isDark, (jint)accent);
+                            if (didAttach) g_jvm->DetachCurrentThread();
+                        }
+                    }
+                }
+            }
             if (g_jvm && g_displayObj && g_notifyColorProfileChangedMethodId) {
                 JNIEnv* env;
                 jint attachResult = g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6);
@@ -675,6 +752,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_fastdisplay_FastDisplay_startMonitori
     g_notifyOrientationChangedMethodId = env->GetMethodID(clazz, "notifyOrientationChanged", "(II)V");
     g_notifyDebugMethodId = env->GetMethodID(clazz, "notifyDebug", "(Ljava/lang/String;)V");
     g_notifyColorProfileChangedMethodId = env->GetMethodID(clazz, "notifyColorProfileChanged", "(I)V");
+    g_notifyThemeChangedMethodId = env->GetMethodID(clazz, "notifyThemeChanged", "(ZI)V");
 
     // Create monitoring thread
     HANDLE hThread = CreateThread(nullptr, 0, MonitorThread, nullptr, 0, &g_threadId);
@@ -1071,4 +1149,19 @@ static bool SetBrightnessForMonitorIndex(int index, int percent) {
 extern "C" JNIEXPORT jboolean JNICALL
 Java_fastdisplay_FastDisplay_setBrightness(JNIEnv* env, jobject obj, jint monitorIndex, jint percent) {
     return SetBrightnessForMonitorIndex(monitorIndex, percent) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_fastdisplay_FastDisplay_isAppDarkMode(JNIEnv* env, jobject obj) {
+    return IsDarkModeInternal(true) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_fastdisplay_FastDisplay_isSystemDarkMode(JNIEnv* env, jobject obj) {
+    return IsDarkModeInternal(false) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_fastdisplay_FastDisplay_getAccentColor(JNIEnv* env, jobject obj) {
+    return (jint)GetAccentColorInternal();
 }

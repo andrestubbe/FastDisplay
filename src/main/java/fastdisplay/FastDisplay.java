@@ -205,6 +205,14 @@ public class FastDisplay {
 
         /** Called when display color profile changes. */
         void onColorProfileChanged(int monitorIndex);
+
+        /**
+         * Called when Windows system theme changes (Dark/Light mode switch or accent color).
+         *
+         * @param isDark true if Windows is using Dark Mode, false for Light Mode
+         * @param accentColor Windows accent color (ARGB integer)
+         */
+        default void onThemeChanged(boolean isDark, int accentColor) {}
     }
 
     // ============================
@@ -290,6 +298,22 @@ public class FastDisplay {
             }
         }
     }
+
+    /** Called from native code when Windows theme / dark mode / accent color changes. */
+    private void notifyThemeChanged(boolean isDark, int accentColor) {
+        if (listener != null) {
+            listener.onThemeChanged(isDark, accentColor);
+        }
+    }
+
+    /** Check if Windows Apps are configured to use Dark Mode. */
+    public native boolean isAppDarkMode();
+
+    /** Check if Windows System is configured to use Dark Mode. */
+    public native boolean isSystemDarkMode();
+
+    /** Get current Windows Accent Color as ARGB integer. */
+    public native int getAccentColor();
 
     /** Called from native code when Color Profile changes. */
     private void notifyColorProfileChanged(int monitorIndex) {
